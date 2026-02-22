@@ -95,23 +95,37 @@ mv gitdeck /usr/local/bin/
 
 Requires Go 1.24 or later.
 
+## Authentication
+
+gitdeck ships with built-in OAuth credentials for **GitHub** and **GitLab**. On first run it starts the Device Flow automatically — just open a link and enter a code:
+
+```
+No GitHub token found. Starting OAuth authentication...
+Visit:      https://github.com/login/device
+Enter code: ABCD-1234
+Waiting for authorization...
+Authenticated. Token saved to /Users/you/.config/gitdeck/config.toml
+```
+
+The token is saved so subsequent runs are silent. No config file needed for the common case.
+
 ## Configuration
 
-Create `~/.config/gitdeck/config.toml`:
+Optionally create `~/.config/gitdeck/config.toml` to customize behavior:
 
 ```toml
 # Number of recent pipelines to show (default: 3)
 pipeline_limit = 3
 
 [github]
-client_id = "YOUR_GITHUB_OAUTH_APP_CLIENT_ID"
-# token is written here automatically after first login
+# Override the built-in OAuth Client ID with your own
+# client_id = "YOUR_GITHUB_OAUTH_APP_CLIENT_ID"
 
 [gitlab]
-client_id = "YOUR_GITLAB_OAUTH_APP_CLIENT_ID"
-# url is only needed for self-hosted GitLab instances
+# Override the built-in OAuth Application ID with your own
+# client_id = "YOUR_GITLAB_OAUTH_APP_CLIENT_ID"
+# Only needed for self-hosted GitLab instances
 # url = "https://gitlab.example.com"
-# token is written here automatically after first login
 ```
 
 ### Environment variable overrides
@@ -122,25 +136,13 @@ client_id = "YOUR_GITLAB_OAUTH_APP_CLIENT_ID"
 | `GITLAB_TOKEN` | `gitlab.token`   |
 | `GITLAB_URL`   | `gitlab.url`     |
 
-### Setting up OAuth Apps
+### Using your own OAuth Apps
 
-**GitHub**: Create an OAuth App at *Settings → Developer settings → OAuth Apps*. Set the callback URL to `http://localhost` (not used for device flow). Copy the Client ID into the config.
+If you prefer to use your own OAuth credentials instead of the built-in ones:
+
+**GitHub**: Create an OAuth App at *Settings → Developer settings → OAuth Apps*. Set the callback URL to `http://localhost`. Copy the Client ID into the config.
 
 **GitLab**: Create an OAuth App at *User Settings → Applications*. Enable the `read_api` scope and tick *Allow Device Authorization Grant*. Copy the Application ID into the config.
-
-## Authentication
-
-On first run, if no token is configured, gitdeck starts the OAuth Device Flow automatically:
-
-```
-No GitHub token found. Starting OAuth authentication...
-Visit:      https://github.com/login/device
-Enter code: ABCD-1234
-Waiting for authorization...
-Authenticated. Token saved to /Users/you/.config/gitdeck/config.toml
-```
-
-The token is saved to the config file so subsequent runs are silent.
 
 ## Keyboard shortcuts
 

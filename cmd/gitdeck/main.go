@@ -20,6 +20,11 @@ import (
 // version is set at build time via -ldflags "-X main.version=x.y.z".
 var version = "dev"
 
+// defaultGitHubClientID is the Client ID of the gitdeck OAuth app registered on github.com.
+// It is non-confidential (no secret required) so it is safe to distribute with the binary.
+// Users can override it by setting github.client_id in ~/.config/gitdeck/config.toml.
+const defaultGitHubClientID = "Ov23liw1KWtnqgtO7qvT"
+
 // defaultGitLabClientID is the Application ID of the gitdeck OAuth app registered on gitlab.com.
 // It is non-confidential (no secret required) so it is safe to distribute with the binary.
 // Users can override it by setting gitlab.client_id in ~/.config/gitdeck/config.toml.
@@ -113,7 +118,7 @@ func isGitLabRemote(remoteURL string, configuredURL string) bool {
 // It blocks until the user completes authorization or an error occurs.
 func runGitHubAuth(ctx context.Context, clientID string) (string, error) {
 	if clientID == "" {
-		return "", fmt.Errorf("github.client_id is not set in config — add it to ~/.config/gitdeck/config.toml")
+		clientID = defaultGitHubClientID
 	}
 	flow := auth.NewGitHubDeviceFlow(clientID, "")
 	code, err := flow.RequestCode(ctx)
