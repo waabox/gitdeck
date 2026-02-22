@@ -22,13 +22,11 @@
   <img src="./assets/demo.gif" width="80%" alt="gitdeck demo" />
 </p>
 
-## Why Gitdeck?
+## Why gitdeck instead of the web UI?
 
-- **Stop alt-tabbing to GitHub/GitLab** just to check if green turned red.
-- **Check pipelines on any repo in 2 keystrokes**: `cd repo && gitdeck`.
-- **Works everywhere** — SSH boxes, remote dev containers, headless servers. No browser needed.
-
-Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
+- **No context-switching**: see pipelines, jobs and logs without leaving your terminal.
+- **Keyboard-first**: rerun / cancel with a single keypress.
+- **Works with both GitHub Actions and GitLab CI/CD** from the same tool.
 
 ## Quick Start
 
@@ -178,14 +176,7 @@ If you prefer to use your own OAuth credentials instead of the built-in ones:
 
 ## Contributing
 
-Contributions are welcome. Please open an [issue](https://github.com/waabox/gitdeck/issues) first to discuss what you'd like to change.
-
-```bash
-git clone https://github.com/waabox/gitdeck.git
-cd gitdeck
-go test ./...
-go build -o gitdeck ./cmd/gitdeck
-```
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## Built with
 
