@@ -1,0 +1,11 @@
+package auth
+
+// DeviceCodeResponse holds the initial response from a device authorization request.
+// It contains the code to show the user and the parameters needed for polling.
+type DeviceCodeResponse struct {
+	DeviceCode      string
+	UserCode        string
+	VerificationURI string
+	ExpiresIn       int
+	Interval        int
+}
