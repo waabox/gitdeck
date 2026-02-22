@@ -104,6 +104,13 @@ func TestSave_WritesAndReloadsCorrectly(t *testing.T) {
 	if loaded.GitLab.URL != "https://gl.example.com" {
 		t.Errorf("gitlab url: want 'https://gl.example.com', got '%s'", loaded.GitLab.URL)
 	}
+	info, statErr := os.Stat(path)
+	if statErr != nil {
+		t.Fatalf("stat: %v", statErr)
+	}
+	if perm := info.Mode().Perm(); perm != 0600 {
+		t.Errorf("file permissions: want 0600, got %04o", perm)
+	}
 }
 
 func TestSave_CreatesParentDirectory(t *testing.T) {

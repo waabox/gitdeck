@@ -2,8 +2,8 @@ package config
 
 import (
 	"fmt"
-	"path/filepath"
 	"os"
+	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 )
@@ -70,6 +70,9 @@ func Save(path string, cfg Config) error {
 	if err != nil {
 		return fmt.Errorf("opening config file: %w", err)
 	}
-	defer f.Close()
-	return toml.NewEncoder(f).Encode(cfg)
+	if encErr := toml.NewEncoder(f).Encode(cfg); encErr != nil {
+		f.Close()
+		return encErr
+	}
+	return f.Close()
 }
