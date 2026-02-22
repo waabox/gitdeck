@@ -66,7 +66,7 @@ brew install gitdeck
 
 > **Note:** The binary is not yet signed with an Apple Developer certificate, so macOS may flag it as unverified. If that happens, remove the quarantine attribute:
 > ```bash
-> xattr -d com.apple.quarantine $(which gitdeck)
+> xattr -d com.apple.quarantine "$(readlink -f $(which gitdeck))"
 > ```
 
 ### Linux (Debian/Ubuntu)
