@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/waabox/gitdeck/internal/auth"
 	"github.com/waabox/gitdeck/internal/config"
@@ -38,24 +39,24 @@ func main() {
 	ctx := context.Background()
 
 	if strings.Contains(repo.RemoteURL, "github.com") && cfg.GitHub.Token == "" {
-		token, authErr := runGitHubAuth(ctx)
+		token, authErr := runGitHubAuth(ctx, configPath)
 		if authErr != nil {
 			fmt.Fprintf(os.Stderr, "GitHub authentication failed: %v\n", authErr)
 			os.Exit(1)
 		}
 		cfg.GitHub.Token = token
 		if saveErr := config.Save(configPath, cfg); saveErr != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not save token to config: %v\n", saveErr)
+			fmt.Fprintf(os.Stderr, "warning: could not save token to config: %v (you will need to re-authenticate next run)\n", saveErr)
 		}
 	} else if isGitLabRemote(repo.RemoteURL, cfg.GitLab.URL) && cfg.GitLab.Token == "" {
-		token, authErr := runGitLabAuth(ctx, cfg.GitLab.URL)
+		token, authErr := runGitLabAuth(ctx, cfg.GitLab.URL, configPath)
 		if authErr != nil {
 			fmt.Fprintf(os.Stderr, "GitLab authentication failed: %v\n", authErr)
 			os.Exit(1)
 		}
 		cfg.GitLab.Token = token
 		if saveErr := config.Save(configPath, cfg); saveErr != nil {
-			fmt.Fprintf(os.Stderr, "warning: could not save token to config: %v\n", saveErr)
+			fmt.Fprintf(os.Stderr, "warning: could not save token to config: %v (you will need to re-authenticate next run)\n", saveErr)
 		}
 	}
 
@@ -85,42 +86,50 @@ func isGitLabRemote(remoteURL string, configuredURL string) bool {
 	return configuredURL != "" && strings.Contains(remoteURL, configuredURL)
 }
 
-// runGitHubAuth runs the GitHub Device Authorization Flow interactively on stdout.
+// runGitHubAuth runs the GitHub Device Authorization Flow interactively.
+// All prompts are written to stderr so stdout remains clean for piping.
 // It blocks until the user completes authorization or an error occurs.
-func runGitHubAuth(ctx context.Context) (string, error) {
+// configPath is the path where the token will be persisted, used in the success message.
+func runGitHubAuth(ctx context.Context, configPath string) (string, error) {
 	flow := auth.NewDefaultGitHubDeviceFlow()
 	code, err := flow.RequestCode(ctx)
 	if err != nil {
 		return "", fmt.Errorf("requesting device code: %w", err)
 	}
-	fmt.Printf("No GitHub token found. Starting OAuth authentication...\n")
-	fmt.Printf("Visit:      %s\n", code.VerificationURI)
-	fmt.Printf("Enter code: %s\n", code.UserCode)
-	fmt.Printf("Waiting for authorization...\n")
-	token, err := flow.PollToken(ctx, code.DeviceCode, code.Interval)
+	fmt.Fprintf(os.Stderr, "No GitHub token found. Starting OAuth authentication...\n")
+	fmt.Fprintf(os.Stderr, "Visit:      %s\n", code.VerificationURI)
+	fmt.Fprintf(os.Stderr, "Enter code: %s\n", code.UserCode)
+	fmt.Fprintf(os.Stderr, "Waiting for authorization...\n")
+	codeCtx, cancel := context.WithTimeout(ctx, time.Duration(code.ExpiresIn)*time.Second)
+	defer cancel()
+	token, err := flow.PollToken(codeCtx, code.DeviceCode, code.Interval)
 	if err != nil {
 		return "", err
 	}
-	fmt.Printf("Authenticated \u2713  Token saved to ~/.config/gitdeck/config.toml\n")
+	fmt.Fprintf(os.Stderr, "Authenticated. Token saved to %s\n", configPath)
 	return token, nil
 }
 
-// runGitLabAuth runs the GitLab Device Authorization Flow interactively on stdout.
+// runGitLabAuth runs the GitLab Device Authorization Flow interactively.
+// All prompts are written to stderr so stdout remains clean for piping.
 // baseURL is the GitLab instance base URL; pass empty string for gitlab.com.
-func runGitLabAuth(ctx context.Context, baseURL string) (string, error) {
+// configPath is the path where the token will be persisted, used in the success message.
+func runGitLabAuth(ctx context.Context, baseURL string, configPath string) (string, error) {
 	flow := auth.NewDefaultGitLabDeviceFlow(baseURL)
 	code, err := flow.RequestCode(ctx)
 	if err != nil {
 		return "", fmt.Errorf("requesting device code: %w", err)
 	}
-	fmt.Printf("No GitLab token found. Starting OAuth authentication...\n")
-	fmt.Printf("Visit:      %s\n", code.VerificationURI)
-	fmt.Printf("Enter code: %s\n", code.UserCode)
-	fmt.Printf("Waiting for authorization...\n")
-	token, err := flow.PollToken(ctx, code.DeviceCode, code.Interval)
+	fmt.Fprintf(os.Stderr, "No GitLab token found. Starting OAuth authentication...\n")
+	fmt.Fprintf(os.Stderr, "Visit:      %s\n", code.VerificationURI)
+	fmt.Fprintf(os.Stderr, "Enter code: %s\n", code.UserCode)
+	fmt.Fprintf(os.Stderr, "Waiting for authorization...\n")
+	codeCtx, cancel := context.WithTimeout(ctx, time.Duration(code.ExpiresIn)*time.Second)
+	defer cancel()
+	token, err := flow.PollToken(codeCtx, code.DeviceCode, code.Interval)
 	if err != nil {
 		return "", err
 	}
-	fmt.Printf("Authenticated \u2713  Token saved to ~/.config/gitdeck/config.toml\n")
+	fmt.Fprintf(os.Stderr, "Authenticated. Token saved to %s\n", configPath)
 	return token, nil
 }
