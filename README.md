@@ -15,7 +15,7 @@ A terminal UI for monitoring CI/CD pipelines. Run it from any git repository and
 Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 
 ```
- gitdeck  waabox/gitdeck  q:quit  r:refresh
+ gitdeck  waabox/gitdeck  q:quit  ctrl+r:refresh  r:rerun  x:cancel
 ────────────────────────────────────────────────────────────
  PIPELINES [active]
 > ● main  05ae12b  "feat: read OAuth client IDs from config"  waabox   2m
@@ -42,6 +42,8 @@ Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 - OAuth Device Flow authentication for GitHub and GitLab (no manual token copy-paste)
 - Config via `~/.config/gitdeck/config.toml` with environment variable overrides
 - Auto-detects repository from the current working directory
+- View full raw job logs in a fullscreen scrollable panel (press `l` on a job)
+- Re-run or cancel any pipeline with a single keypress and inline confirmation
 
 ## Installation
 
@@ -132,14 +134,19 @@ The token is saved to the config file so subsequent runs are silent.
 
 ## Keyboard shortcuts
 
-| Key            | Action                                  |
-|----------------|-----------------------------------------|
-| `↑` / `↓`     | Navigate pipelines or jobs              |
-| `Enter`        | Select pipeline, focus job detail panel |
-| `Tab`          | Switch focus between panels             |
-| `Esc`          | Return focus to the pipeline list       |
-| `r`            | Refresh pipelines now                   |
-| `q` / `Ctrl+C` | Quit                                   |
+| Key              | Action                                        |
+|------------------|-----------------------------------------------|
+| `↑` / `↓`        | Navigate pipelines or jobs / scroll logs      |
+| `Enter`          | Select pipeline, focus job detail panel       |
+| `Tab`            | Switch focus between panels                   |
+| `l`              | View full logs for selected job (fullscreen)  |
+| `r`              | Re-run selected pipeline (asks confirmation)  |
+| `x`              | Cancel selected pipeline (asks confirmation)  |
+| `PgUp` / `PgDn`  | Scroll logs by page (in log viewer)           |
+| `g` / `G`        | Jump to top / bottom of log (in log viewer)   |
+| `Esc`            | Exit log viewer / return focus to pipelines   |
+| `ctrl+r`         | Refresh pipelines now                         |
+| `q` / `Ctrl+C`   | Quit                                          |
 
 ## Usage
 
