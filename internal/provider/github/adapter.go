@@ -3,6 +3,7 @@ package github
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -93,6 +94,43 @@ func (a *Adapter) get(url string, target interface{}) error {
 		return fmt.Errorf("github API error: %s", resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(target)
+}
+
+// getText fetches a URL and returns the response body as a plain string.
+// It follows redirects using Go's default policy, which strips the Authorization
+// header on cross-domain redirects — the correct behaviour for GitHub's log
+// endpoint that returns a 302 redirect to a pre-signed S3 URL.
+func (a *Adapter) getText(url string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+a.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("executing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("github API error: %s", resp.Status)
+	}
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading log response: %w", err)
+	}
+	return string(b), nil
+}
+
+// GetJobLogs returns the full raw log text for the given job.
+// GitHub returns a 302 redirect to a pre-signed S3 URL; the HTTP client
+// follows it automatically and strips the Authorization header on the redirect.
+func (a *Adapter) GetJobLogs(repo domain.Repository, jobID domain.JobID) (string, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/actions/jobs/%s/logs",
+		a.baseURL, repo.Owner, repo.Name, jobID)
+	return a.getText(url)
 }
 
 // workflowRun is the raw GitHub API response shape for a workflow run.

@@ -2,6 +2,7 @@ package github_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -206,5 +207,30 @@ func TestGetPipeline_ParsesJobSteps(t *testing.T) {
 	}
 	if job.Steps[1].Status != domain.StatusRunning {
 		t.Errorf("expected second step status running, got '%s'", job.Steps[1].Status)
+	}
+}
+
+func TestGetJobLogs_ReturnsLogText(t *testing.T) {
+	expectedLog := "##[group]Set up job\nRun actions/checkout@v4\n##[endgroup]\nok all tests pass"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/waabox/gitdeck/actions/jobs/2001/logs" {
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, expectedLog)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	adapter := githubprovider.NewAdapter("test-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
+
+	logs, err := adapter.GetJobLogs(repo, domain.JobID("2001"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if logs != expectedLog {
+		t.Errorf("expected log text %q, got %q", expectedLog, logs)
 	}
 }
