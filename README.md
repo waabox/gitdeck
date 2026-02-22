@@ -7,10 +7,14 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <p align="center">
-  <img src="./assets/logo-plain.png" width="30%" />
+  <a href="https://github.com/waabox/gitdeck/wiki">
+    <img src="./assets/logo-plain.png" width="30%" alt="gitdeck" />
+  </a>
 </p>
 
 A terminal UI for monitoring CI/CD pipelines. Run it from any git repository and get an instant overview of pipeline runs and job statuses — no browser required.
+
+For full documentation, configuration details and keyboard shortcuts see the **[gitdeck wiki](https://github.com/waabox/gitdeck/wiki)**.
 
 Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 
