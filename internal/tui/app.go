@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -31,6 +32,14 @@ type actionResultMsg struct {
 	err    error
 }
 
+// LogsLoadedMsg is sent when job logs have been fetched from the provider.
+// It is exported so that tests can inject it directly into AppModel.Update.
+type LogsLoadedMsg struct {
+	Content string
+	JobName string
+	Err     error
+}
+
 // focusPanel indicates which panel has keyboard focus.
 type focusPanel int
 
@@ -51,6 +60,12 @@ type AppModel struct {
 	width         int
 	height        int
 	confirmAction string // "rerun" | "cancel" | ""
+	// Log viewer state
+	logMode    bool
+	logLoading bool
+	logContent string
+	logOffset  int
+	logJobName string
 }
 
 // NewAppModel creates the root application model.
@@ -97,6 +112,13 @@ func (m AppModel) cancelPipeline(id string) tea.Cmd {
 	}
 }
 
+func (m AppModel) loadJobLogs(job domain.Job) tea.Cmd {
+	return func() tea.Msg {
+		content, err := m.provider.GetJobLogs(m.repo, domain.JobID(job.ID))
+		return LogsLoadedMsg{Content: content, JobName: job.Name, Err: err}
+	}
+}
+
 func tickEvery(d time.Duration) tea.Cmd {
 	return tea.Tick(d, func(_ time.Time) tea.Msg {
 		return tickMsg{}
@@ -128,6 +150,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.list = NewPipelineListModel(msg.Pipelines)
+		// Pre-populate the detail model if the selected pipeline already carries jobs.
+		if len(msg.Pipelines) > 0 && len(msg.Pipelines[0].Jobs) > 0 {
+			m.detail = NewJobDetailModel(msg.Pipelines[0].Jobs)
+		}
 
 	case pipelineDetailMsg:
 		if msg.err != nil {
@@ -155,6 +181,18 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.loading = true
 		return m, m.loadPipelines()
+
+	case LogsLoadedMsg:
+		m.logLoading = false
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		m.logMode = true
+		m.logContent = msg.Content
+		m.logJobName = msg.JobName
+		m.logOffset = 0
+		return m, nil
 
 	case tea.KeyMsg:
 		// Any key dismisses the confirmation prompt (except y which confirms, and q/ctrl+c which quit).
@@ -198,12 +236,22 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.focus = focusList
 			}
 		case "down":
+			if m.logMode {
+				m.logOffset++
+				return m, nil
+			}
 			if m.focus == focusList {
 				m.list = m.list.MoveDown()
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
 			}
 			m.detail = m.detail.MoveDown()
 		case "up":
+			if m.logMode {
+				if m.logOffset > 0 {
+					m.logOffset--
+				}
+				return m, nil
+			}
 			if m.focus == focusList {
 				m.list = m.list.MoveUp()
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
@@ -215,7 +263,49 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
 			}
 			m.detail = m.detail.ToggleExpand(m.detail.Cursor())
+		case "l":
+			if m.focus == focusDetail && !m.logMode && !m.logLoading {
+				jobs := m.detail.Jobs()
+				if len(jobs) > 0 {
+					m.logLoading = true
+					return m, m.loadJobLogs(jobs[m.detail.Cursor()])
+				}
+			}
+		case "pgup":
+			if m.logMode {
+				page := m.visibleLogLines()
+				if m.logOffset-page >= 0 {
+					m.logOffset -= page
+				} else {
+					m.logOffset = 0
+				}
+				return m, nil
+			}
+		case "pgdown":
+			if m.logMode {
+				m.logOffset += m.visibleLogLines()
+				return m, nil
+			}
+		case "g":
+			if m.logMode {
+				m.logOffset = 0
+				return m, nil
+			}
+		case "G":
+			if m.logMode {
+				lines := strings.Count(m.logContent, "\n")
+				if lines > 0 {
+					m.logOffset = lines - 1
+				}
+				return m, nil
+			}
 		case "esc":
+			if m.logMode {
+				m.logMode = false
+				m.logContent = ""
+				m.logOffset = 0
+				return m, nil
+			}
 			m.focus = focusList
 		}
 	}
@@ -224,6 +314,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the full TUI.
 func (m AppModel) View() string {
+	if m.logLoading {
+		return "Loading logs...\n"
+	}
+	if m.logMode {
+		return m.renderLogView()
+	}
 	if m.loading && m.confirmAction == "" {
 		return "Loading pipelines...\n"
 	}
@@ -282,4 +378,39 @@ func shortSHA(sha string) string {
 		return sha[:7]
 	}
 	return sha
+}
+
+// visibleLogLines returns the number of log lines visible in the current terminal height.
+func (m AppModel) visibleLogLines() int {
+	lines := m.height - 4 // account for header, separator, and footer
+	if lines < 1 {
+		return 10
+	}
+	return lines
+}
+
+// renderLogView renders the fullscreen log viewer.
+func (m AppModel) renderLogView() string {
+	header := fmt.Sprintf(" gitdeck  %s/%s  [logs] %s\n",
+		m.repo.Owner, m.repo.Name, m.logJobName)
+	separator := "────────────────────────────────────────────────────────────\n"
+	footer := " ↑/↓: scroll   PgUp/PgDn: page   g/G: top/bottom   esc: back\n"
+
+	lines := strings.Split(m.logContent, "\n")
+	visibleCount := m.visibleLogLines()
+
+	start := m.logOffset
+	if start < 0 {
+		start = 0
+	}
+	if start >= len(lines) {
+		start = len(lines) - 1
+	}
+	end := start + visibleCount
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	body := strings.Join(lines[start:end], "\n")
+	return header + separator + body + "\n" + separator + footer
 }

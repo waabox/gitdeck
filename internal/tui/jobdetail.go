@@ -55,6 +55,11 @@ func (m JobDetailModel) Cursor() int {
 	return m.cursor
 }
 
+// Jobs returns the full job slice.
+func (m JobDetailModel) Jobs() []domain.Job {
+	return m.jobs
+}
+
 // View renders the job list as a string.
 func (m JobDetailModel) View() string {
 	return m.render(false)
