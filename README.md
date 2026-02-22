@@ -1,5 +1,11 @@
 # gitdeck
 
+[![CI](https://github.com/waabox/gitdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/waabox/gitdeck/actions/workflows/ci.yml)
+[![Release](https://github.com/waabox/gitdeck/actions/workflows/release.yml/badge.svg)](https://github.com/waabox/gitdeck/actions/workflows/release.yml)
+[![Latest Release](https://img.shields.io/github/v/release/waabox/gitdeck)](https://github.com/waabox/gitdeck/releases/latest)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/waabox/gitdeck)](go.mod)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A terminal UI for monitoring CI/CD pipelines. Run it from any git repository and get an instant overview of pipeline runs and job statuses — no browser required.
 
 Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
