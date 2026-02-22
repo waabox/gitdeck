@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// PipelineStatus represents the execution state of a pipeline or job.
+// PipelineStatus represents the execution state of a pipeline, job, or step.
 type PipelineStatus string
 
 const (
@@ -13,6 +13,13 @@ const (
 	StatusCancelled PipelineStatus = "cancelled"
 )
 
+// Step represents a single step within a CI job.
+type Step struct {
+	Name     string
+	Status   PipelineStatus
+	Duration time.Duration
+}
+
 // Job represents a single unit of work within a pipeline.
 type Job struct {
 	ID        string
@@ -21,6 +28,7 @@ type Job struct {
 	Status    PipelineStatus
 	Duration  time.Duration
 	StartedAt time.Time
+	Steps     []Step
 }
 
 // Pipeline represents a CI pipeline run.
