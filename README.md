@@ -29,13 +29,14 @@ Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 
 ────────────────────────────────────────────────────────────
  #1042  main  05ae12b  "feat: read OAuth client IDs"  by waabox
- ↑/↓: navigate   tab: switch panel   enter: select   r: refresh   q: quit
+ ↑/↓: navigate   tab: switch panel   enter: select/expand   r: refresh   q: quit
 ```
 
 ## Features
 
 - Live pipeline list with status icons and durations
 - Job detail panel with per-job navigation
+- Per-job step detail: press `enter` on a job to expand its individual steps inline
 - Auto-refresh every 5 seconds
 - Configurable number of pipelines to display (default: 3)
 - OAuth Device Flow authentication for GitHub and GitLab (no manual token copy-paste)
