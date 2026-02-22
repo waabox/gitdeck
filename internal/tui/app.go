@@ -58,7 +58,7 @@ func NewAppModel(repo domain.Repository, provider domain.PipelineProvider) AppMo
 
 // Init triggers the initial pipeline load.
 func (m AppModel) Init() tea.Cmd {
-	return tea.Batch(m.loadPipelines(), tickEvery(30*time.Second))
+	return tea.Batch(m.loadPipelines(), tickEvery(5*time.Second))
 }
 
 func (m AppModel) loadPipelines() tea.Cmd {
