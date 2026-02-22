@@ -9,10 +9,11 @@ import (
 	"github.com/waabox/gitdeck/internal/domain"
 )
 
-// pipelinesLoadedMsg is sent when pipelines have been fetched from the provider.
-type pipelinesLoadedMsg struct {
-	pipelines []domain.Pipeline
-	err       error
+// PipelinesLoadedMsg is sent when pipelines have been fetched from the provider.
+// It is exported so that tests can inject it directly into AppModel.Update.
+type PipelinesLoadedMsg struct {
+	Pipelines []domain.Pipeline
+	Err       error
 }
 
 // pipelineDetailMsg is sent when a pipeline detail (with jobs) has been fetched.
@@ -71,7 +72,7 @@ func (m AppModel) Init() tea.Cmd {
 func (m AppModel) loadPipelines() tea.Cmd {
 	return func() tea.Msg {
 		pipelines, err := m.provider.ListPipelines(m.repo)
-		return pipelinesLoadedMsg{pipelines: pipelines, err: err}
+		return PipelinesLoadedMsg{Pipelines: pipelines, Err: err}
 	}
 }
 
@@ -120,13 +121,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-	case pipelinesLoadedMsg:
+	case PipelinesLoadedMsg:
 		m.loading = false
-		if msg.err != nil {
-			m.err = msg.err
+		if msg.Err != nil {
+			m.err = msg.Err
 			return m, nil
 		}
-		m.list = NewPipelineListModel(msg.pipelines)
+		m.list = NewPipelineListModel(msg.Pipelines)
 
 	case pipelineDetailMsg:
 		if msg.err != nil {
@@ -160,12 +161,17 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.confirmAction != "" {
 			switch msg.String() {
 			case "y":
+				selected := m.list.SelectedPipeline()
+				if selected.ID == "" {
+					m.confirmAction = ""
+					return m, nil
+				}
 				action := m.confirmAction
 				m.confirmAction = ""
 				if action == "rerun" {
-					return m, m.rerunPipeline(m.list.SelectedPipeline().ID)
+					return m, m.rerunPipeline(selected.ID)
 				}
-				return m, m.cancelPipeline(m.list.SelectedPipeline().ID)
+				return m, m.cancelPipeline(selected.ID)
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			default:
