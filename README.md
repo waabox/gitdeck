@@ -33,8 +33,11 @@ Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 ## Quick Start
 
 ```bash
-brew tap waabox/gitdeck
-brew install gitdeck
+# Option A: Homebrew
+brew tap waabox/gitdeck && brew install gitdeck
+
+# Option B: One-liner install (requires Go 1.24+)
+curl -sSL https://raw.githubusercontent.com/waabox/gitdeck/main/install.sh | bash
 
 cd /path/to/your/repo
 gitdeck
@@ -88,6 +91,14 @@ sudo dpkg -i gitdeck_linux_arm64.deb
 ```bash
 sudo rpm -i https://github.com/waabox/gitdeck/releases/latest/download/gitdeck_linux_amd64.rpm
 ```
+
+### Quick install (curl)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/waabox/gitdeck/main/install.sh | bash
+```
+
+Clones the repo into a temp directory, builds from source, and installs the binary to `/usr/local/bin`. Requires **Git** and **Go 1.24+**.
 
 ### From source
 
