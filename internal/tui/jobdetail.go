@@ -87,9 +87,9 @@ func (m JobDetailModel) render(focused bool) string {
 		))
 		if m.expanded[i] {
 			for si, s := range j.Steps {
-				tree := "├"
+				tree := "├─"
 				if si == len(j.Steps)-1 {
-					tree = "└"
+					tree = "└─"
 				}
 				stepDuration := "--"
 				if s.Duration > 0 {
