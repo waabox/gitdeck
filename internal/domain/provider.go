@@ -11,7 +11,16 @@ type PipelineID string
 // Implementations should return the last 20-30 runs as provided by the API default page size.
 //
 // GetPipeline returns a single pipeline with its full job list.
+//
+// GetJobLogs returns the full raw log text for the given job ID.
+//
+// RerunPipeline triggers a new run of the given pipeline.
+//
+// CancelPipeline cancels a running pipeline.
 type PipelineProvider interface {
 	ListPipelines(repo Repository) ([]Pipeline, error)
 	GetPipeline(repo Repository, id PipelineID) (Pipeline, error)
+	GetJobLogs(repo Repository, jobID string) (string, error)
+	RerunPipeline(repo Repository, id PipelineID) error
+	CancelPipeline(repo Repository, id PipelineID) error
 }
