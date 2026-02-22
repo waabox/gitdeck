@@ -21,6 +21,9 @@ type Adapter struct {
 	client  *http.Client
 }
 
+// Ensure Adapter fully implements domain.PipelineProvider.
+var _ domain.PipelineProvider = (*Adapter)(nil)
+
 // NewAdapter creates a GitHub Actions adapter.
 // baseURL is used for testing; pass empty string to use the real GitHub API.
 // limit controls how many pipeline runs are fetched; must be >= 1.
@@ -122,6 +125,42 @@ func (a *Adapter) getText(url string) (string, error) {
 		return "", fmt.Errorf("reading log response: %w", err)
 	}
 	return string(b), nil
+}
+
+// post sends a POST request with no body and discards the response body.
+// GitHub mutation endpoints (rerun, cancel) return 204 or 202 with no meaningful body.
+func (a *Adapter) post(url string) error {
+	req, err := http.NewRequest(http.MethodPost, url, nil)
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+a.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("executing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("github API error: %s", resp.Status)
+	}
+	return nil
+}
+
+// RerunPipeline triggers a new run of the given workflow run.
+func (a *Adapter) RerunPipeline(repo domain.Repository, id domain.PipelineID) error {
+	url := fmt.Sprintf("%s/repos/%s/%s/actions/runs/%s/rerun",
+		a.baseURL, repo.Owner, repo.Name, id)
+	return a.post(url)
+}
+
+// CancelPipeline cancels a running workflow run.
+func (a *Adapter) CancelPipeline(repo domain.Repository, id domain.PipelineID) error {
+	url := fmt.Sprintf("%s/repos/%s/%s/actions/runs/%s/cancel",
+		a.baseURL, repo.Owner, repo.Name, id)
+	return a.post(url)
 }
 
 // GetJobLogs returns the full raw log text for the given job.

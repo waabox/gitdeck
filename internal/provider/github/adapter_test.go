@@ -210,6 +210,56 @@ func TestGetPipeline_ParsesJobSteps(t *testing.T) {
 	}
 }
 
+func TestRerunPipeline_PostsToCorrectEndpoint(t *testing.T) {
+	rerunCalled := false
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/repos/waabox/gitdeck/actions/runs/1001/rerun" {
+			rerunCalled = true
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	adapter := githubprovider.NewAdapter("test-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
+
+	err := adapter.RerunPipeline(repo, domain.PipelineID("1001"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !rerunCalled {
+		t.Error("expected rerun endpoint to be called")
+	}
+}
+
+func TestCancelPipeline_PostsToCorrectEndpoint(t *testing.T) {
+	cancelCalled := false
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/repos/waabox/gitdeck/actions/runs/1001/cancel" {
+			cancelCalled = true
+			w.WriteHeader(http.StatusAccepted)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	adapter := githubprovider.NewAdapter("test-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
+
+	err := adapter.CancelPipeline(repo, domain.PipelineID("1001"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cancelCalled {
+		t.Error("expected cancel endpoint to be called")
+	}
+}
+
 func TestGetJobLogs_ReturnsLogText(t *testing.T) {
 	expectedLog := "##[group]Set up job\nRun actions/checkout@v4\n##[endgroup]\nok all tests pass"
 
