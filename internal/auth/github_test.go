@@ -1,6 +1,7 @@
 package auth_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -29,7 +30,7 @@ func TestGitHubDeviceFlow_RequestCode_ReturnsUserCode(t *testing.T) {
 	defer server.Close()
 
 	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
-	code, err := flow.RequestCode()
+	code, err := flow.RequestCode(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -59,7 +60,7 @@ func TestGitHubDeviceFlow_PollToken_ReturnsTokenOnSuccess(t *testing.T) {
 
 	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
 	// interval=0 disables the sleep delay in tests
-	token, err := flow.PollToken("dev_abc", 0)
+	token, err := flow.PollToken(context.Background(), "dev_abc", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -76,7 +77,7 @@ func TestGitHubDeviceFlow_PollToken_ReturnsErrorOnAccessDenied(t *testing.T) {
 	defer server.Close()
 
 	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
-	_, err := flow.PollToken("dev_abc", 0)
+	_, err := flow.PollToken(context.Background(), "dev_abc", 0)
 	if err == nil {
 		t.Fatal("expected error for access_denied, got nil")
 	}
@@ -90,8 +91,65 @@ func TestGitHubDeviceFlow_PollToken_ReturnsErrorOnExpiredToken(t *testing.T) {
 	defer server.Close()
 
 	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
-	_, err := flow.PollToken("dev_abc", 0)
+	_, err := flow.PollToken(context.Background(), "dev_abc", 0)
 	if err == nil {
 		t.Fatal("expected error for expired_token, got nil")
+	}
+}
+
+func TestGitHubDeviceFlow_PollToken_SlowDownIncreasesInterval(t *testing.T) {
+	callCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+		if callCount == 1 {
+			json.NewEncoder(w).Encode(map[string]string{"error": "slow_down"})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]string{"access_token": "gho_after_slowdown"})
+	}))
+	defer server.Close()
+
+	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
+	token, err := flow.PollToken(context.Background(), "dev_abc", 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if token != "gho_after_slowdown" {
+		t.Errorf("token: want 'gho_after_slowdown', got '%s'", token)
+	}
+	if callCount != 2 {
+		t.Errorf("expected 2 poll calls, got %d", callCount)
+	}
+}
+
+func TestGitHubDeviceFlow_PollToken_ReturnsErrorOnUnknownErrorCode(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"error": "some_unknown_code"})
+	}))
+	defer server.Close()
+
+	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
+	_, err := flow.PollToken(context.Background(), "dev_abc", 0)
+	if err == nil {
+		t.Fatal("expected error for unknown error code, got nil")
+	}
+}
+
+func TestGitHubDeviceFlow_PollToken_CancelledContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"error": "authorization_pending"})
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
+	_, err := flow.PollToken(ctx, "dev_abc", 0)
+	if err == nil {
+		t.Fatal("expected error for cancelled context, got nil")
 	}
 }

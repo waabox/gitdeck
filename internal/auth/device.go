@@ -6,6 +6,6 @@ type DeviceCodeResponse struct {
 	DeviceCode      string
 	UserCode        string
 	VerificationURI string
-	ExpiresIn       int
-	Interval        int
+	ExpiresIn       int // seconds until the device code expires
+	Interval        int // minimum polling interval in seconds
 }

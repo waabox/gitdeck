@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -43,12 +44,18 @@ func NewDefaultGitHubDeviceFlow() *GitHubDeviceFlow {
 
 // RequestCode requests a device code and user code from GitHub.
 // The returned DeviceCodeResponse.UserCode must be shown to the user along with VerificationURI.
-func (f *GitHubDeviceFlow) RequestCode() (DeviceCodeResponse, error) {
+// ctx is used to cancel the request (e.g. when the user quits the TUI).
+func (f *GitHubDeviceFlow) RequestCode(ctx context.Context) (DeviceCodeResponse, error) {
 	data := url.Values{}
 	data.Set("client_id", f.clientID)
 	data.Set("scope", "repo,workflow")
 
-	req, err := http.NewRequest(http.MethodPost, f.baseURL+"/login/device/code", strings.NewReader(data.Encode()))
+	endpoint, err := url.JoinPath(f.baseURL, "/login/device/code")
+	if err != nil {
+		return DeviceCodeResponse{}, fmt.Errorf("building URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		return DeviceCodeResponse{}, fmt.Errorf("creating request: %w", err)
 	}
@@ -82,14 +89,32 @@ func (f *GitHubDeviceFlow) RequestCode() (DeviceCodeResponse, error) {
 
 // PollToken polls the GitHub token endpoint until an access token is granted or an error occurs.
 // interval is the polling interval in seconds; pass 0 to skip the sleep delay (useful in tests).
+// ctx is used to cancel the polling loop (e.g. when the user quits the TUI).
 // Handles authorization_pending, slow_down, expired_token, and access_denied error codes.
-func (f *GitHubDeviceFlow) PollToken(deviceCode string, interval int) (string, error) {
-	if interval < 0 {
-		interval = 5
+func (f *GitHubDeviceFlow) PollToken(ctx context.Context, deviceCode string, interval int) (string, error) {
+	if interval <= 0 {
+		// interval=0 means no sleep (test mode); negative is treated as no-sleep too
+		interval = 0
 	}
+
+	tokenEndpoint, err := url.JoinPath(f.baseURL, "/login/oauth/access_token")
+	if err != nil {
+		return "", fmt.Errorf("building URL: %w", err)
+	}
+
 	for {
 		if interval > 0 {
-			time.Sleep(time.Duration(interval) * time.Second)
+			select {
+			case <-time.After(time.Duration(interval) * time.Second):
+			case <-ctx.Done():
+				return "", ctx.Err()
+			}
+		} else {
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			default:
+			}
 		}
 
 		data := url.Values{}
@@ -97,7 +122,7 @@ func (f *GitHubDeviceFlow) PollToken(deviceCode string, interval int) (string, e
 		data.Set("device_code", deviceCode)
 		data.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
 
-		req, err := http.NewRequest(http.MethodPost, f.baseURL+"/login/oauth/access_token", strings.NewReader(data.Encode()))
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenEndpoint, strings.NewReader(data.Encode()))
 		if err != nil {
 			return "", fmt.Errorf("creating request: %w", err)
 		}
@@ -124,6 +149,12 @@ func (f *GitHubDeviceFlow) PollToken(deviceCode string, interval int) (string, e
 			if raw.AccessToken != "" {
 				return raw.AccessToken, nil
 			}
+			// server returned neither token nor error — check context and retry
+			select {
+			case <-ctx.Done():
+				return "", ctx.Err()
+			default:
+			}
 		case "authorization_pending":
 			// keep polling
 		case "slow_down":
@@ -133,7 +164,11 @@ func (f *GitHubDeviceFlow) PollToken(deviceCode string, interval int) (string, e
 		case "access_denied":
 			return "", fmt.Errorf("access denied by user")
 		default:
-			return "", fmt.Errorf("unexpected error from GitHub: %s", raw.Error)
+			errMsg := raw.Error
+			if len(errMsg) > 100 {
+				errMsg = errMsg[:100]
+			}
+			return "", fmt.Errorf("unexpected error from GitHub: %s", errMsg)
 		}
 	}
 }
