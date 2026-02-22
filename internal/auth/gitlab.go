@@ -38,6 +38,8 @@ func NewGitLabDeviceFlow(clientID string, baseURL string) *GitLabDeviceFlow {
 }
 
 // NewDefaultGitLabDeviceFlow creates a GitLabDeviceFlow using the embedded client ID.
+// Unlike the GitHub equivalent, baseURL is required here because GitLab can be self-hosted.
+// Pass an empty string to use gitlab.com.
 func NewDefaultGitLabDeviceFlow(baseURL string) *GitLabDeviceFlow {
 	return NewGitLabDeviceFlow(gitlabClientID, baseURL)
 }
@@ -48,7 +50,7 @@ func NewDefaultGitLabDeviceFlow(baseURL string) *GitLabDeviceFlow {
 func (f *GitLabDeviceFlow) RequestCode(ctx context.Context) (DeviceCodeResponse, error) {
 	data := url.Values{}
 	data.Set("client_id", f.clientID)
-	data.Set("scope", "read_api")
+	data.Set("scope", "read_api") // read_api is sufficient for pipeline/job reads (least privilege)
 
 	endpoint, err := url.JoinPath(f.baseURL, "/oauth/authorize_device")
 	if err != nil {
