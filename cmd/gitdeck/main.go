@@ -20,6 +20,11 @@ import (
 // version is set at build time via -ldflags "-X main.version=x.y.z".
 var version = "dev"
 
+// defaultGitLabClientID is the Application ID of the gitdeck OAuth app registered on gitlab.com.
+// It is non-confidential (no secret required) so it is safe to distribute with the binary.
+// Users can override it by setting gitlab.client_id in ~/.config/gitdeck/config.toml.
+const defaultGitLabClientID = "9df6c8abe93dc879a79ecf7681909b4a37d5c61064190a795bbf16e1ed8bffa3"
+
 func main() {
 	versionFlag := flag.Bool("version", false, "print version and exit")
 	flag.Parse()
@@ -129,7 +134,7 @@ func runGitHubAuth(ctx context.Context, clientID string) (string, error) {
 // baseURL is the GitLab instance base URL; pass empty string for gitlab.com.
 func runGitLabAuth(ctx context.Context, clientID string, baseURL string) (string, error) {
 	if clientID == "" {
-		return "", fmt.Errorf("gitlab.client_id is not set in config — add it to ~/.config/gitdeck/config.toml")
+		clientID = defaultGitLabClientID
 	}
 	flow := auth.NewGitLabDeviceFlow(clientID, baseURL)
 	code, err := flow.RequestCode(ctx)

@@ -59,6 +59,17 @@ func (f *GitHubDeviceFlow) RequestCode(ctx context.Context) (DeviceCodeResponse,
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != http.StatusOK {
+		var errBody struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		if decErr := json.NewDecoder(resp.Body).Decode(&errBody); decErr == nil && errBody.Error != "" {
+			return DeviceCodeResponse{}, fmt.Errorf("GitHub device code request failed (HTTP %d): %s — %s", resp.StatusCode, errBody.Error, errBody.ErrorDescription)
+		}
+		return DeviceCodeResponse{}, fmt.Errorf("GitHub device code request failed with HTTP %d", resp.StatusCode)
+	}
+
 	var raw struct {
 		DeviceCode      string `json:"device_code"`
 		UserCode        string `json:"user_code"`

@@ -84,7 +84,7 @@ func (a *Adapter) get(apiURL string, target interface{}) error {
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("PRIVATE-TOKEN", a.token)
+	req.Header.Set("Authorization", "Bearer "+a.token)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -104,7 +104,7 @@ func (a *Adapter) getText(apiURL string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("PRIVATE-TOKEN", a.token)
+	req.Header.Set("Authorization", "Bearer "+a.token)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -130,7 +130,7 @@ func (a *Adapter) post(apiURL string) error {
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("PRIVATE-TOKEN", a.token)
+	req.Header.Set("Authorization", "Bearer "+a.token)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
