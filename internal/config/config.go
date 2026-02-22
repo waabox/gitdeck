@@ -10,13 +10,15 @@ import (
 
 // GitHubConfig holds authentication configuration for GitHub.
 type GitHubConfig struct {
-	Token string `toml:"token"`
+	ClientID string `toml:"client_id"`
+	Token    string `toml:"token"`
 }
 
 // GitLabConfig holds authentication configuration for GitLab.
 type GitLabConfig struct {
-	Token string `toml:"token"`
-	URL   string `toml:"url"`
+	ClientID string `toml:"client_id"`
+	Token    string `toml:"token"`
+	URL      string `toml:"url"`
 }
 
 // Config holds all gitdeck configuration.

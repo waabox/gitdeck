@@ -10,10 +10,6 @@ import (
 	"time"
 )
 
-// gitlabClientID is the OAuth App client ID registered at https://gitlab.com/-/profile/applications.
-// Replace this constant with your real client ID before building.
-const gitlabClientID = "REPLACE_WITH_YOUR_GITLAB_OAUTH_APP_CLIENT_ID"
-
 const gitlabDefaultBaseURL = "https://gitlab.com"
 
 // GitLabDeviceFlow implements the OAuth 2.0 Device Authorization Flow for GitLab.
@@ -35,13 +31,6 @@ func NewGitLabDeviceFlow(clientID string, baseURL string) *GitLabDeviceFlow {
 		baseURL:  baseURL,
 		client:   &http.Client{Timeout: 15 * time.Second},
 	}
-}
-
-// NewDefaultGitLabDeviceFlow creates a GitLabDeviceFlow using the embedded client ID.
-// Unlike the GitHub equivalent, baseURL is required here because GitLab can be self-hosted.
-// Pass an empty string to use gitlab.com.
-func NewDefaultGitLabDeviceFlow(baseURL string) *GitLabDeviceFlow {
-	return NewGitLabDeviceFlow(gitlabClientID, baseURL)
 }
 
 // RequestCode requests a device code and user code from GitLab.

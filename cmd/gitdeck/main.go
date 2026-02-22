@@ -39,7 +39,7 @@ func main() {
 	ctx := context.Background()
 
 	if strings.Contains(repo.RemoteURL, "github.com") && cfg.GitHub.Token == "" {
-		token, authErr := runGitHubAuth(ctx)
+		token, authErr := runGitHubAuth(ctx, cfg.GitHub.ClientID)
 		if authErr != nil {
 			fmt.Fprintf(os.Stderr, "GitHub authentication failed: %v\n", authErr)
 			os.Exit(1)
@@ -51,7 +51,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Authenticated. Token saved to %s\n", configPath)
 		}
 	} else if isGitLabRemote(repo.RemoteURL, cfg.GitLab.URL) && cfg.GitLab.Token == "" {
-		token, authErr := runGitLabAuth(ctx, cfg.GitLab.URL)
+		token, authErr := runGitLabAuth(ctx, cfg.GitLab.ClientID, cfg.GitLab.URL)
 		if authErr != nil {
 			fmt.Fprintf(os.Stderr, "GitLab authentication failed: %v\n", authErr)
 			os.Exit(1)
@@ -93,8 +93,11 @@ func isGitLabRemote(remoteURL string, configuredURL string) bool {
 // runGitHubAuth runs the GitHub Device Authorization Flow interactively.
 // All prompts are written to stderr so stdout remains clean for piping.
 // It blocks until the user completes authorization or an error occurs.
-func runGitHubAuth(ctx context.Context) (string, error) {
-	flow := auth.NewDefaultGitHubDeviceFlow()
+func runGitHubAuth(ctx context.Context, clientID string) (string, error) {
+	if clientID == "" {
+		return "", fmt.Errorf("github.client_id is not set in config — add it to ~/.config/gitdeck/config.toml")
+	}
+	flow := auth.NewGitHubDeviceFlow(clientID, "")
 	code, err := flow.RequestCode(ctx)
 	if err != nil {
 		return "", fmt.Errorf("requesting device code: %w", err)
@@ -111,8 +114,11 @@ func runGitHubAuth(ctx context.Context) (string, error) {
 // runGitLabAuth runs the GitLab Device Authorization Flow interactively.
 // All prompts are written to stderr so stdout remains clean for piping.
 // baseURL is the GitLab instance base URL; pass empty string for gitlab.com.
-func runGitLabAuth(ctx context.Context, baseURL string) (string, error) {
-	flow := auth.NewDefaultGitLabDeviceFlow(baseURL)
+func runGitLabAuth(ctx context.Context, clientID string, baseURL string) (string, error) {
+	if clientID == "" {
+		return "", fmt.Errorf("gitlab.client_id is not set in config — add it to ~/.config/gitdeck/config.toml")
+	}
+	flow := auth.NewGitLabDeviceFlow(clientID, baseURL)
 	code, err := flow.RequestCode(ctx)
 	if err != nil {
 		return "", fmt.Errorf("requesting device code: %w", err)

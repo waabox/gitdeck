@@ -10,10 +10,6 @@ import (
 	"time"
 )
 
-// githubClientID is the OAuth App client ID registered at https://github.com/settings/developers.
-// Replace this constant with your real client ID before building.
-const githubClientID = "REPLACE_WITH_YOUR_GITHUB_OAUTH_APP_CLIENT_ID"
-
 const githubDefaultBaseURL = "https://github.com"
 
 // GitHubDeviceFlow implements the OAuth 2.0 Device Authorization Flow for GitHub.
@@ -35,11 +31,6 @@ func NewGitHubDeviceFlow(clientID string, baseURL string) *GitHubDeviceFlow {
 		baseURL:  baseURL,
 		client:   &http.Client{Timeout: 15 * time.Second},
 	}
-}
-
-// NewDefaultGitHubDeviceFlow creates a GitHubDeviceFlow using the embedded client ID.
-func NewDefaultGitHubDeviceFlow() *GitHubDeviceFlow {
-	return NewGitHubDeviceFlow(githubClientID, "")
 }
 
 // RequestCode requests a device code and user code from GitHub.
