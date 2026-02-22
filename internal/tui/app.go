@@ -81,6 +81,16 @@ func tickEvery(d time.Duration) tea.Cmd {
 	})
 }
 
+// anyRunning reports whether any pipeline in the list has StatusRunning.
+func anyRunning(pipelines []domain.Pipeline) bool {
+	for _, p := range pipelines {
+		if p.Status == domain.StatusRunning {
+			return true
+		}
+	}
+	return false
+}
+
 // Update handles all incoming messages and key events.
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -105,7 +115,16 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detail = NewJobDetailModel(msg.pipeline.Jobs)
 
 	case tickMsg:
-		return m, tea.Batch(m.loadPipelines(), tickEvery(30*time.Second))
+		selected := m.list.SelectedPipeline()
+		interval := 30 * time.Second
+		if anyRunning(m.list.Pipelines()) {
+			interval = 5 * time.Second
+		}
+		cmds := []tea.Cmd{m.loadPipelines(), tickEvery(interval)}
+		if selected.Status == domain.StatusRunning && selected.ID != "" {
+			cmds = append(cmds, m.loadPipelineDetail(selected.ID))
+		}
+		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -124,21 +143,20 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusList {
 				m.list = m.list.MoveDown()
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
-			} else {
-				m.detail = m.detail.MoveDown()
 			}
+			m.detail = m.detail.MoveDown()
 		case "up":
 			if m.focus == focusList {
 				m.list = m.list.MoveUp()
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
-			} else {
-				m.detail = m.detail.MoveUp()
 			}
+			m.detail = m.detail.MoveUp()
 		case "enter":
 			if m.focus == focusList {
 				m.focus = focusDetail
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
 			}
+			m.detail = m.detail.ToggleExpand(m.detail.Cursor())
 		case "esc":
 			m.focus = focusList
 		}
@@ -178,7 +196,7 @@ func (m AppModel) View() string {
 		selected.ID, selected.Branch,
 		shortSHA(selected.CommitSHA), selected.CommitMsg, selected.Author)
 
-	footer := " ↑/↓: navigate   tab: switch panel   enter: select   r: refresh   q: quit\n"
+	footer := " ↑/↓: navigate   tab: switch panel   enter: select/expand   r: refresh   q: quit\n"
 
 	return header + separator +
 		listHeader + listView + "\n" +

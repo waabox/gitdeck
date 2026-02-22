@@ -49,6 +49,12 @@ func (m PipelineListModel) SelectedPipeline() domain.Pipeline {
 	return m.pipelines[m.cursor]
 }
 
+
+// Pipelines returns the full pipeline slice.
+func (m PipelineListModel) Pipelines() []domain.Pipeline {
+	return m.pipelines
+}
+
 // View renders the pipeline list as a string.
 func (m PipelineListModel) View() string {
 	if len(m.pipelines) == 0 {
