@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -16,7 +17,16 @@ import (
 	"github.com/waabox/gitdeck/internal/tui"
 )
 
+const version = "0.1.0"
+
 func main() {
+	versionFlag := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+	if *versionFlag {
+		fmt.Println("gitdeck", version)
+		os.Exit(0)
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error getting current directory: %v\n", err)
