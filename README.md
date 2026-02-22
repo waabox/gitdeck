@@ -1,12 +1,3 @@
-# gitdeck
-
-[![CI](https://github.com/waabox/gitdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/waabox/gitdeck/actions/workflows/ci.yml)
-[![Release](https://github.com/waabox/gitdeck/actions/workflows/release.yml/badge.svg)](https://github.com/waabox/gitdeck/actions/workflows/release.yml)
-[![Latest Release](https://img.shields.io/github/v/release/waabox/gitdeck)](https://github.com/waabox/gitdeck/releases/latest)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/waabox/gitdeck)](go.mod)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Wiki](https://img.shields.io/badge/wiki-documentation-blue?logo=github)](https://github.com/waabox/gitdeck/wiki)
-
 <p align="center">
   <a href="https://github.com/waabox/gitdeck/wiki">
     <img src="./assets/logo-plain.png" width="30%" alt="gitdeck" />
@@ -19,6 +10,15 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/waabox/gitdeck/actions/workflows/ci.yml"><img src="https://github.com/waabox/gitdeck/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+  <a href="https://github.com/waabox/gitdeck/actions/workflows/release.yml"><img src="https://github.com/waabox/gitdeck/actions/workflows/release.yml/badge.svg" alt="Release" /></a>
+  <a href="https://github.com/waabox/gitdeck/releases/latest"><img src="https://img.shields.io/github/v/release/waabox/gitdeck" alt="Latest Release" /></a>
+  <a href="go.mod"><img src="https://img.shields.io/github/go-mod/go-version/waabox/gitdeck" alt="Go Version" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT" /></a>
+  <a href="https://github.com/waabox/gitdeck/wiki"><img src="https://img.shields.io/badge/wiki-documentation-blue?logo=github" alt="Wiki" /></a>
+</p>
+
+<p align="center">
   <img src="./assets/demo.gif" width="80%" alt="gitdeck demo" />
 </p>
 
@@ -28,27 +28,19 @@
 - **Check pipelines on any repo in 2 keystrokes**: `cd repo && gitdeck`.
 - **Works everywhere** — SSH boxes, remote dev containers, headless servers. No browser needed.
 
-For full documentation, configuration details and keyboard shortcuts see the **[gitdeck wiki](https://github.com/waabox/gitdeck/wiki)**.
-
 Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 
-```
- gitdeck  waabox/gitdeck  q:quit  ctrl+r:refresh  r:rerun  x:cancel
-────────────────────────────────────────────────────────────
- PIPELINES [active]
-> ● main  05ae12b  "feat: read OAuth client IDs from config"  waabox   2m
-  ✓ main  efb251c  "fix: move Token saved message"            waabox  45s
-  ✓ main  0b73eb0  "fix: use stderr for auth prompts"         waabox   1m
+## Quick Start
 
- JOBS
-  ✓ build    build    12s
-  ✓ test     test     38s
-  ● lint     lint      3s
+```bash
+brew tap waabox/gitdeck
+brew install gitdeck
 
-────────────────────────────────────────────────────────────
- #1042  main  05ae12b  "feat: read OAuth client IDs"  by waabox
- ↑/↓: navigate   tab: switch panel   enter: select/expand   l: logs   r: rerun   x: cancel   q: quit
+cd /path/to/your/repo
+gitdeck
 ```
+
+On first run gitdeck will authenticate via OAuth Device Flow — just open a link and enter a code.
 
 ## Features
 
@@ -166,19 +158,29 @@ The token is saved to the config file so subsequent runs are silent.
 | `ctrl+r`         | Refresh pipelines now                         |
 | `q` / `Ctrl+C`   | Quit                                          |
 
-## Usage
+## Contributing
+
+Contributions are welcome. Please open an [issue](https://github.com/waabox/gitdeck/issues) first to discuss what you'd like to change.
 
 ```bash
-# Run from inside any git repository
-cd /path/to/your/project
-gitdeck
-
-# Print version
-gitdeck --version
+git clone https://github.com/waabox/gitdeck.git
+cd gitdeck
+go test ./...
+go build -o gitdeck ./cmd/gitdeck
 ```
 
-gitdeck reads the `origin` remote from `.git/config` and selects the correct CI provider automatically.
+## Built with
+
+- [Go](https://go.dev)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) — TUI framework
+- [Lip Gloss](https://github.com/charmbracelet/lipgloss) — Styling
 
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+
+<p align="center">
+  <a href="https://github.com/waabox/gitdeck/wiki">Documentation</a> · <a href="https://github.com/waabox/gitdeck/issues">Issues</a> · <a href="https://github.com/waabox/gitdeck/releases/latest">Releases</a>
+</p>
