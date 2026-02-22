@@ -17,7 +17,8 @@ import (
 	"github.com/waabox/gitdeck/internal/tui"
 )
 
-const version = "0.1.0"
+// version is set at build time via -ldflags "-X main.version=x.y.z".
+var version = "dev"
 
 func main() {
 	versionFlag := flag.Bool("version", false, "print version and exit")

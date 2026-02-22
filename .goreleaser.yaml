@@ -1,0 +1,62 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: gitdeck
+    main: ./cmd/gitdeck
+    binary: gitdeck
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+
+nfpms:
+  - id: packages
+    package_name: gitdeck
+    vendor: Emiliano Arango
+    homepage: https://github.com/waabox/gitdeck
+    maintainer: Emiliano Arango <waabox@gmail.com>
+    description: Terminal UI for monitoring CI/CD pipelines.
+    license: MIT
+    formats:
+      - deb
+      - rpm
+
+homebrew_casks:
+  - name: gitdeck
+    repository:
+      owner: waabox
+      name: homebrew-gitdeck
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: waabox
+      email: waabox@gmail.com
+    homepage: https://github.com/waabox/gitdeck
+    description: Terminal UI for monitoring CI/CD pipelines.
+    caveats: "Run gitdeck from inside any git repository."
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
