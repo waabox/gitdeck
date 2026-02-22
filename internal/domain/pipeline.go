@@ -2,6 +2,10 @@ package domain
 
 import "time"
 
+// JobID is the unique identifier for a CI job.
+// Using a distinct type prevents confusion with other string parameters.
+type JobID string
+
 // PipelineStatus represents the execution state of a pipeline, job, or step.
 type PipelineStatus string
 
