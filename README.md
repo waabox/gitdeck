@@ -29,7 +29,7 @@ Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 
 ────────────────────────────────────────────────────────────
  #1042  main  05ae12b  "feat: read OAuth client IDs"  by waabox
- ↑/↓: navigate   tab: switch panel   enter: select/expand   r: refresh   q: quit
+ ↑/↓: navigate   tab: switch panel   enter: select/expand   l: logs   r: rerun   x: cancel   q: quit
 ```
 
 ## Features
