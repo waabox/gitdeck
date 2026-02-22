@@ -7,8 +7,8 @@ Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 ```
  gitdeck  waabox/gitdeck  q:quit  r:refresh
 ────────────────────────────────────────────────────────────
- PIPELINES
-  ● main  05ae12b  "feat: read OAuth client IDs from config"  waabox   2m
+ PIPELINES [active]
+> ● main  05ae12b  "feat: read OAuth client IDs from config"  waabox   2m
   ✓ main  efb251c  "fix: move Token saved message"            waabox  45s
   ✓ main  0b73eb0  "fix: use stderr for auth prompts"         waabox   1m
 
@@ -19,14 +19,15 @@ Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 
 ────────────────────────────────────────────────────────────
  #1042  main  05ae12b  "feat: read OAuth client IDs"  by waabox
- j/k: navigate   tab: switch panel   enter: select   r: refresh   q: quit
+ ↑/↓: navigate   tab: switch panel   enter: select   r: refresh   q: quit
 ```
 
 ## Features
 
 - Live pipeline list with status icons and durations
-- Job detail panel for the selected pipeline
-- Auto-refresh every 30 seconds
+- Job detail panel with per-job navigation
+- Auto-refresh every 5 seconds
+- Configurable number of pipelines to display (default: 3)
 - OAuth Device Flow authentication for GitHub and GitLab (no manual token copy-paste)
 - Config via `~/.config/gitdeck/config.toml` with environment variable overrides
 - Auto-detects repository from the current working directory
@@ -49,6 +50,9 @@ Requires Go 1.24 or later.
 Create `~/.config/gitdeck/config.toml`:
 
 ```toml
+# Number of recent pipelines to show (default: 3)
+pipeline_limit = 3
+
 [github]
 client_id = "YOUR_GITHUB_OAUTH_APP_CLIENT_ID"
 # token is written here automatically after first login
@@ -90,15 +94,14 @@ The token is saved to the config file so subsequent runs are silent.
 
 ## Keyboard shortcuts
 
-| Key          | Action                                  |
-|--------------|-----------------------------------------|
-| `j` / `↓`   | Move down in the pipeline list          |
-| `k` / `↑`   | Move up in the pipeline list            |
-| `Enter`      | Select pipeline, focus job detail panel |
-| `Tab`        | Switch focus between panels             |
-| `Esc`        | Return focus to the pipeline list       |
-| `r`          | Refresh pipelines now                   |
-| `q` / `Ctrl+C` | Quit                                  |
+| Key            | Action                                  |
+|----------------|-----------------------------------------|
+| `↑` / `↓`     | Navigate pipelines or jobs              |
+| `Enter`        | Select pipeline, focus job detail panel |
+| `Tab`          | Switch focus between panels             |
+| `Esc`          | Return focus to the pipeline list       |
+| `r`            | Refresh pipelines now                   |
+| `q` / `Ctrl+C` | Quit                                   |
 
 ## Usage
 
@@ -106,6 +109,9 @@ The token is saved to the config file so subsequent runs are silent.
 # Run from inside any git repository
 cd /path/to/your/project
 gitdeck
+
+# Print version
+gitdeck --version
 ```
 
 gitdeck reads the `origin` remote from `.git/config` and selects the correct CI provider automatically.
