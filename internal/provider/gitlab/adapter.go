@@ -3,6 +3,7 @@ package gitlab
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -20,6 +21,9 @@ type Adapter struct {
 	limit   int
 	client  *http.Client
 }
+
+// Ensure Adapter fully implements domain.PipelineProvider.
+var _ domain.PipelineProvider = (*Adapter)(nil)
 
 // NewAdapter creates a GitLab CI adapter.
 // baseURL can be a self-hosted GitLab instance URL; pass empty string for gitlab.com.
@@ -92,6 +96,76 @@ func (a *Adapter) get(apiURL string, target interface{}) error {
 		return fmt.Errorf("gitlab API error: %s", resp.Status)
 	}
 	return json.NewDecoder(resp.Body).Decode(target)
+}
+
+// getText fetches a URL and returns the response body as a plain string.
+func (a *Adapter) getText(apiURL string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("PRIVATE-TOKEN", a.token)
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("executing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("gitlab API error: %s", resp.Status)
+	}
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("reading log response: %w", err)
+	}
+	return string(b), nil
+}
+
+// post sends a POST request with no body and discards the response body.
+// GitLab mutation endpoints (retry, cancel) return 200 or 201 with a JSON body
+// that we do not need.
+func (a *Adapter) post(apiURL string) error {
+	req, err := http.NewRequest(http.MethodPost, apiURL, nil)
+	if err != nil {
+		return fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("PRIVATE-TOKEN", a.token)
+
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("executing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("gitlab API error: %s", resp.Status)
+	}
+	return nil
+}
+
+// GetJobLogs returns the full raw log trace for the given job.
+func (a *Adapter) GetJobLogs(repo domain.Repository, jobID domain.JobID) (string, error) {
+	projectID := url.PathEscape(repo.Owner + "/" + repo.Name)
+	apiURL := fmt.Sprintf("%s/api/v4/projects/%s/jobs/%s/trace",
+		a.baseURL, projectID, jobID)
+	return a.getText(apiURL)
+}
+
+// RerunPipeline retries a failed or cancelled pipeline.
+func (a *Adapter) RerunPipeline(repo domain.Repository, id domain.PipelineID) error {
+	projectID := url.PathEscape(repo.Owner + "/" + repo.Name)
+	apiURL := fmt.Sprintf("%s/api/v4/projects/%s/pipelines/%s/retry",
+		a.baseURL, projectID, id)
+	return a.post(apiURL)
+}
+
+// CancelPipeline cancels a running pipeline.
+func (a *Adapter) CancelPipeline(repo domain.Repository, id domain.PipelineID) error {
+	projectID := url.PathEscape(repo.Owner + "/" + repo.Name)
+	apiURL := fmt.Sprintf("%s/api/v4/projects/%s/pipelines/%s/cancel",
+		a.baseURL, projectID, id)
+	return a.post(apiURL)
 }
 
 type gitLabPipeline struct {

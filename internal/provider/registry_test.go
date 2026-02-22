@@ -15,6 +15,15 @@ func (f *fakeProvider) ListPipelines(_ domain.Repository) ([]domain.Pipeline, er
 func (f *fakeProvider) GetPipeline(_ domain.Repository, _ domain.PipelineID) (domain.Pipeline, error) {
 	return domain.Pipeline{}, nil
 }
+func (f *fakeProvider) GetJobLogs(_ domain.Repository, _ domain.JobID) (string, error) {
+	return "", nil
+}
+func (f *fakeProvider) RerunPipeline(_ domain.Repository, _ domain.PipelineID) error {
+	return nil
+}
+func (f *fakeProvider) CancelPipeline(_ domain.Repository, _ domain.PipelineID) error {
+	return nil
+}
 
 func TestRegistry_DetectsGitHub(t *testing.T) {
 	gh := &fakeProvider{name: "github"}

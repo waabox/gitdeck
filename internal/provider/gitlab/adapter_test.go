@@ -2,6 +2,7 @@ package gitlab_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -107,5 +108,80 @@ func TestGetPipeline_ReturnsPipelineWithJobs(t *testing.T) {
 	}
 	if pipeline.Jobs[1].Stage != "test" {
 		t.Errorf("expected second job stage 'test', got '%s'", pipeline.Jobs[1].Stage)
+	}
+}
+
+func TestGetJobLogs_ReturnsLogText(t *testing.T) {
+	expectedLog := "Running with gitlab-runner...\nok  all tests pass"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawPath == "/api/v4/projects/waabox%2Fgitdeck/jobs/3001/trace" {
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprint(w, expectedLog)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	adapter := gitlabprovider.NewAdapter("test-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
+
+	logs, err := adapter.GetJobLogs(repo, domain.JobID("3001"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if logs != expectedLog {
+		t.Errorf("expected log text %q, got %q", expectedLog, logs)
+	}
+}
+
+func TestRerunPipeline_PostsToRetryEndpoint(t *testing.T) {
+	rerunCalled := false
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.RawPath == "/api/v4/projects/waabox%2Fgitdeck/pipelines/5001/retry" {
+			rerunCalled = true
+			w.WriteHeader(http.StatusCreated)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	adapter := gitlabprovider.NewAdapter("test-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
+
+	err := adapter.RerunPipeline(repo, domain.PipelineID("5001"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !rerunCalled {
+		t.Error("expected retry endpoint to be called")
+	}
+}
+
+func TestCancelPipeline_PostsToCancelEndpoint(t *testing.T) {
+	cancelCalled := false
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.RawPath == "/api/v4/projects/waabox%2Fgitdeck/pipelines/5001/cancel" {
+			cancelCalled = true
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+
+	adapter := gitlabprovider.NewAdapter("test-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
+
+	err := adapter.CancelPipeline(repo, domain.PipelineID("5001"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cancelCalled {
+		t.Error("expected cancel endpoint to be called")
 	}
 }
