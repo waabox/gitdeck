@@ -224,10 +224,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 			return m, m.loadPipelines()
 		case "r":
-			m.confirmAction = "rerun"
+			if !m.logMode {
+				m.confirmAction = "rerun"
+			}
 			return m, nil
 		case "x":
-			m.confirmAction = "cancel"
+			if !m.logMode {
+				m.confirmAction = "cancel"
+			}
 			return m, nil
 		case "tab":
 			if m.focus == focusList {
@@ -300,10 +304,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "G":
 			if m.logMode {
-				lines := strings.Count(m.logContent, "\n")
-				if lines > 0 {
-					m.logOffset = lines - 1
-				}
+				lines := strings.Split(m.logContent, "\n")
+				m.logOffset = len(lines) - 1
 				return m, nil
 			}
 		case "esc":
