@@ -83,3 +83,16 @@ func TestJobDetailModel_ToggleExpand_NoSteps_DoesNothing(t *testing.T) {
 		t.Error("expected non-empty view even when job has no steps")
 	}
 }
+
+func TestJobDetailModel_ToggleExpand_OutOfBounds_DoesNothing(t *testing.T) {
+	jobs := []domain.Job{
+		{ID: "1", Name: "build", Status: domain.StatusSuccess},
+	}
+	m := tui.NewJobDetailModel(jobs)
+	original := m.View()
+	m = m.ToggleExpand(-1)
+	m = m.ToggleExpand(99)
+	if m.View() != original {
+		t.Error("expected view to be unchanged after out-of-bounds toggle")
+	}
+}
