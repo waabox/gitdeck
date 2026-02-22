@@ -23,8 +23,19 @@ type GitLabConfig struct {
 
 // Config holds all gitdeck configuration.
 type Config struct {
-	GitHub GitHubConfig `toml:"github"`
-	GitLab GitLabConfig `toml:"gitlab"`
+	GitHub         GitHubConfig `toml:"github"`
+	GitLab         GitLabConfig `toml:"gitlab"`
+	PipelineLimit  int          `toml:"pipeline_limit"`
+}
+
+const defaultPipelineLimit = 3
+
+// PipelineLimitOrDefault returns PipelineLimit if set, otherwise defaultPipelineLimit.
+func (c Config) PipelineLimitOrDefault() int {
+	if c.PipelineLimit > 0 {
+		return c.PipelineLimit
+	}
+	return defaultPipelineLimit
 }
 
 // LoadFrom reads configuration from the given TOML file path.

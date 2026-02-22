@@ -16,25 +16,28 @@ const defaultBaseURL = "https://api.github.com"
 type Adapter struct {
 	token   string
 	baseURL string
+	limit   int
 	client  *http.Client
 }
 
 // NewAdapter creates a GitHub Actions adapter.
 // baseURL is used for testing; pass empty string to use the real GitHub API.
-func NewAdapter(token string, baseURL string) *Adapter {
+// limit controls how many pipeline runs are fetched; must be >= 1.
+func NewAdapter(token string, baseURL string, limit int) *Adapter {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
 	return &Adapter{
 		token:   token,
 		baseURL: baseURL,
+		limit:   limit,
 		client:  &http.Client{Timeout: 15 * time.Second},
 	}
 }
 
 // ListPipelines returns the most recent workflow runs for the repository.
 func (a *Adapter) ListPipelines(repo domain.Repository) ([]domain.Pipeline, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/actions/runs", a.baseURL, repo.Owner, repo.Name)
+	url := fmt.Sprintf("%s/repos/%s/%s/actions/runs?per_page=%d", a.baseURL, repo.Owner, repo.Name, a.limit)
 	var result struct {
 		WorkflowRuns []workflowRun `json:"workflow_runs"`
 	}

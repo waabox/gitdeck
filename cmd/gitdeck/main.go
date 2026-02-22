@@ -74,13 +74,15 @@ func main() {
 		}
 	}
 
+	limit := cfg.PipelineLimitOrDefault()
+
 	registry := provider.NewRegistry()
-	registry.Register("github.com", githubprovider.NewAdapter(cfg.GitHub.Token, ""))
+	registry.Register("github.com", githubprovider.NewAdapter(cfg.GitHub.Token, "", limit))
 
 	gitLabURL := cfg.GitLab.URL
-	registry.Register("gitlab.com", gitlabprovider.NewAdapter(cfg.GitLab.Token, gitLabURL))
+	registry.Register("gitlab.com", gitlabprovider.NewAdapter(cfg.GitLab.Token, gitLabURL, limit))
 	if gitLabURL != "" {
-		registry.Register(gitLabURL, gitlabprovider.NewAdapter(cfg.GitLab.Token, gitLabURL))
+		registry.Register(gitLabURL, gitlabprovider.NewAdapter(cfg.GitLab.Token, gitLabURL, limit))
 	}
 
 	ciProvider, err := registry.Detect(repo.RemoteURL)

@@ -40,7 +40,7 @@ func TestListPipelines_ReturnsWorkflowRuns(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	adapter := githubprovider.NewAdapter("test-token", srv.URL)
+	adapter := githubprovider.NewAdapter("test-token", srv.URL, 3)
 	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
 
 	pipelines, err := adapter.ListPipelines(repo)
@@ -110,7 +110,7 @@ func TestGetPipeline_ReturnsRunWithJobs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	adapter := githubprovider.NewAdapter("test-token", srv.URL)
+	adapter := githubprovider.NewAdapter("test-token", srv.URL, 3)
 	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
 
 	pipeline, err := adapter.GetPipeline(repo, "1001")

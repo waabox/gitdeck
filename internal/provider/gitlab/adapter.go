@@ -17,18 +17,21 @@ const defaultBaseURL = "https://gitlab.com"
 type Adapter struct {
 	token   string
 	baseURL string
+	limit   int
 	client  *http.Client
 }
 
 // NewAdapter creates a GitLab CI adapter.
 // baseURL can be a self-hosted GitLab instance URL; pass empty string for gitlab.com.
-func NewAdapter(token string, baseURL string) *Adapter {
+// limit controls how many pipelines are fetched; must be >= 1.
+func NewAdapter(token string, baseURL string, limit int) *Adapter {
 	if baseURL == "" {
 		baseURL = defaultBaseURL
 	}
 	return &Adapter{
 		token:   token,
 		baseURL: baseURL,
+		limit:   limit,
 		client:  &http.Client{Timeout: 15 * time.Second},
 	}
 }
@@ -36,7 +39,7 @@ func NewAdapter(token string, baseURL string) *Adapter {
 // ListPipelines returns the most recent pipelines for the repository.
 func (a *Adapter) ListPipelines(repo domain.Repository) ([]domain.Pipeline, error) {
 	projectID := url.PathEscape(repo.Owner + "/" + repo.Name)
-	apiURL := fmt.Sprintf("%s/api/v4/projects/%s/pipelines", a.baseURL, projectID)
+	apiURL := fmt.Sprintf("%s/api/v4/projects/%s/pipelines?per_page=%d", a.baseURL, projectID, a.limit)
 	var runs []gitLabPipeline
 	if err := a.get(apiURL, &runs); err != nil {
 		return nil, err

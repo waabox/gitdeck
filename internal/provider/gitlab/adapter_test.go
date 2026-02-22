@@ -24,7 +24,7 @@ func TestListPipelines_ReturnsPipelines(t *testing.T) {
 	}
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.RequestURI == "/api/v4/projects/mygroup%2Fmyproject/pipelines" {
+		if r.URL.RawPath == "/api/v4/projects/mygroup%2Fmyproject/pipelines" {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(response)
 			return
@@ -33,7 +33,7 @@ func TestListPipelines_ReturnsPipelines(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	adapter := gitlabprovider.NewAdapter("test-token", srv.URL)
+	adapter := gitlabprovider.NewAdapter("test-token", srv.URL, 3)
 	repo := domain.Repository{Owner: "mygroup", Name: "myproject"}
 
 	pipelines, err := adapter.ListPipelines(repo)
@@ -92,7 +92,7 @@ func TestGetPipeline_ReturnsPipelineWithJobs(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	adapter := gitlabprovider.NewAdapter("test-token", srv.URL)
+	adapter := gitlabprovider.NewAdapter("test-token", srv.URL, 3)
 	repo := domain.Repository{Owner: "mygroup", Name: "myproject"}
 
 	pipeline, err := adapter.GetPipeline(repo, "201")
