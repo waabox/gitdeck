@@ -237,7 +237,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "down":
 			if m.logMode {
-				m.logOffset++
+				maxOffset := strings.Count(m.logContent, "\n")
+				if m.logOffset < maxOffset {
+					m.logOffset++
+				}
 				return m, nil
 			}
 			if m.focus == focusList {
@@ -283,7 +286,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "pgdown":
 			if m.logMode {
+				maxOffset := strings.Count(m.logContent, "\n")
 				m.logOffset += m.visibleLogLines()
+				if m.logOffset > maxOffset {
+					m.logOffset = maxOffset
+				}
 				return m, nil
 			}
 		case "g":
@@ -383,7 +390,7 @@ func shortSHA(sha string) string {
 // visibleLogLines returns the number of log lines visible in the current terminal height.
 func (m AppModel) visibleLogLines() int {
 	lines := m.height - 4 // account for header, separator, and footer
-	if lines < 1 {
+	if lines < 10 {
 		return 10
 	}
 	return lines
