@@ -131,14 +131,24 @@ func (r workflowRun) toPipeline() domain.Pipeline {
 	}
 }
 
-// workflowJob is the raw GitHub API response shape for a job.
-type workflowJob struct {
-	ID          int64  `json:"id"`
+// workflowStep is the raw GitHub API response shape for a job step.
+type workflowStep struct {
 	Name        string `json:"name"`
 	Status      string `json:"status"`
 	Conclusion  string `json:"conclusion"`
 	StartedAt   string `json:"started_at"`
 	CompletedAt string `json:"completed_at"`
+}
+
+// workflowJob is the raw GitHub API response shape for a job.
+type workflowJob struct {
+	ID          int64          `json:"id"`
+	Name        string         `json:"name"`
+	Status      string         `json:"status"`
+	Conclusion  string         `json:"conclusion"`
+	StartedAt   string         `json:"started_at"`
+	CompletedAt string         `json:"completed_at"`
+	Steps       []workflowStep `json:"steps"`
 }
 
 func (j workflowJob) toJob() domain.Job {
@@ -148,12 +158,27 @@ func (j workflowJob) toJob() domain.Job {
 	if !started.IsZero() && !completed.IsZero() {
 		duration = completed.Sub(started)
 	}
+	steps := make([]domain.Step, len(j.Steps))
+	for i, s := range j.Steps {
+		stepStarted, _ := time.Parse(time.RFC3339, s.StartedAt)
+		stepCompleted, _ := time.Parse(time.RFC3339, s.CompletedAt)
+		var stepDuration time.Duration
+		if !stepStarted.IsZero() && !stepCompleted.IsZero() {
+			stepDuration = stepCompleted.Sub(stepStarted)
+		}
+		steps[i] = domain.Step{
+			Name:     s.Name,
+			Status:   mapGitHubStatus(s.Status, s.Conclusion),
+			Duration: stepDuration,
+		}
+	}
 	return domain.Job{
 		ID:        strconv.FormatInt(j.ID, 10),
 		Name:      j.Name,
 		Status:    mapGitHubStatus(j.Status, j.Conclusion),
 		StartedAt: started,
 		Duration:  duration,
+		Steps:     steps,
 	}
 }
 

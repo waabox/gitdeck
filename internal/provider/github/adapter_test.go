@@ -127,3 +127,84 @@ func TestGetPipeline_ReturnsRunWithJobs(t *testing.T) {
 		t.Errorf("expected first job 'build', got '%s'", pipeline.Jobs[0].Name)
 	}
 }
+
+func TestGetPipeline_ParsesJobSteps(t *testing.T) {
+	runResponse := map[string]interface{}{
+		"id":          float64(1001),
+		"head_branch": "main",
+		"head_sha":    "abc1234",
+		"head_commit": map[string]interface{}{
+			"message": "fix: login timeout",
+			"author":  map[string]interface{}{"name": "waabox"},
+		},
+		"status":     "in_progress",
+		"conclusion": nil,
+		"created_at": time.Now().Add(-2 * time.Minute).Format(time.RFC3339),
+		"updated_at": time.Now().Format(time.RFC3339),
+	}
+	jobsResponse := map[string]interface{}{
+		"jobs": []map[string]interface{}{
+			{
+				"id":           float64(2001),
+				"name":         "test",
+				"status":       "in_progress",
+				"conclusion":   nil,
+				"started_at":   time.Now().Add(-1 * time.Minute).Format(time.RFC3339),
+				"completed_at": "",
+				"steps": []map[string]interface{}{
+					{
+						"name":         "Set up job",
+						"status":       "completed",
+						"conclusion":   "success",
+						"started_at":   time.Now().Add(-60 * time.Second).Format(time.RFC3339),
+						"completed_at": time.Now().Add(-55 * time.Second).Format(time.RFC3339),
+					},
+					{
+						"name":         "Run tests",
+						"status":       "in_progress",
+						"conclusion":   nil,
+						"started_at":   time.Now().Add(-55 * time.Second).Format(time.RFC3339),
+						"completed_at": "",
+					},
+				},
+			},
+		},
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/repos/waabox/gitdeck/actions/runs/1001":
+			json.NewEncoder(w).Encode(runResponse)
+		case "/repos/waabox/gitdeck/actions/runs/1001/jobs":
+			json.NewEncoder(w).Encode(jobsResponse)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	adapter := githubprovider.NewAdapter("test-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "waabox", Name: "gitdeck"}
+
+	pipeline, err := adapter.GetPipeline(repo, "1001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(pipeline.Jobs) != 1 {
+		t.Fatalf("expected 1 job, got %d", len(pipeline.Jobs))
+	}
+	job := pipeline.Jobs[0]
+	if len(job.Steps) != 2 {
+		t.Fatalf("expected 2 steps, got %d", len(job.Steps))
+	}
+	if job.Steps[0].Name != "Set up job" {
+		t.Errorf("expected first step 'Set up job', got '%s'", job.Steps[0].Name)
+	}
+	if job.Steps[0].Status != domain.StatusSuccess {
+		t.Errorf("expected first step status success, got '%s'", job.Steps[0].Status)
+	}
+	if job.Steps[1].Status != domain.StatusRunning {
+		t.Errorf("expected second step status running, got '%s'", job.Steps[1].Status)
+	}
+}
