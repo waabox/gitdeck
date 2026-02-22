@@ -34,6 +34,33 @@ Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
 
 ## Installation
 
+### macOS (Homebrew)
+
+```bash
+brew tap waabox/gitdeck
+brew install gitdeck
+```
+
+### Linux (Debian/Ubuntu)
+
+```bash
+wget https://github.com/waabox/gitdeck/releases/latest/download/gitdeck_linux_amd64.deb
+sudo dpkg -i gitdeck_linux_amd64.deb
+```
+
+For ARM64:
+
+```bash
+wget https://github.com/waabox/gitdeck/releases/latest/download/gitdeck_linux_arm64.deb
+sudo dpkg -i gitdeck_linux_arm64.deb
+```
+
+### Linux (RPM — Fedora/RHEL)
+
+```bash
+sudo rpm -i https://github.com/waabox/gitdeck/releases/latest/download/gitdeck_linux_amd64.rpm
+```
+
 ### From source
 
 ```bash
