@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+	"path/filepath"
 	"os"
 
 	"github.com/BurntSushi/toml"
@@ -56,4 +58,18 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("GITLAB_URL"); v != "" {
 		cfg.GitLab.URL = v
 	}
+}
+
+// Save writes cfg to the given TOML file path, creating parent directories as needed.
+// Existing file contents are overwritten. Permissions on the written file are 0600.
+func Save(path string, cfg Config) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return fmt.Errorf("creating config directory: %w", err)
+	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("opening config file: %w", err)
+	}
+	defer f.Close()
+	return toml.NewEncoder(f).Encode(cfg)
 }

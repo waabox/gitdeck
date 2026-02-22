@@ -78,3 +78,43 @@ func TestLoad_MissingFileIsNotError(t *testing.T) {
 		t.Errorf("expected token from env, got '%s'", cfg.GitHub.Token)
 	}
 }
+
+func TestSave_WritesAndReloadsCorrectly(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	cfg := config.Config{
+		GitHub: config.GitHubConfig{Token: "ghp_saved"},
+		GitLab: config.GitLabConfig{Token: "glpat_saved", URL: "https://gl.example.com"},
+	}
+
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	loaded, err := config.LoadFrom(path)
+	if err != nil {
+		t.Fatalf("unexpected error loading: %v", err)
+	}
+	if loaded.GitHub.Token != "ghp_saved" {
+		t.Errorf("github token: want 'ghp_saved', got '%s'", loaded.GitHub.Token)
+	}
+	if loaded.GitLab.Token != "glpat_saved" {
+		t.Errorf("gitlab token: want 'glpat_saved', got '%s'", loaded.GitLab.Token)
+	}
+	if loaded.GitLab.URL != "https://gl.example.com" {
+		t.Errorf("gitlab url: want 'https://gl.example.com', got '%s'", loaded.GitLab.URL)
+	}
+}
+
+func TestSave_CreatesParentDirectory(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "nested", "dir", "config.toml")
+	cfg := config.Config{GitHub: config.GitHubConfig{Token: "ghp_test"}}
+
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("file not created: %v", err)
+	}
+}
