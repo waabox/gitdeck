@@ -124,11 +124,15 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.focus == focusList {
 				m.list = m.list.MoveDown()
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
+			} else {
+				m.detail = m.detail.MoveDown()
 			}
 		case "k", "up":
 			if m.focus == focusList {
 				m.list = m.list.MoveUp()
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
+			} else {
+				m.detail = m.detail.MoveUp()
 			}
 		case "enter":
 			if m.focus == focusList {
@@ -157,9 +161,17 @@ func (m AppModel) View() string {
 
 	listHeader := " PIPELINES\n"
 	detailHeader := " JOBS\n"
+	if m.focus == focusList {
+		listHeader = " PIPELINES [active]\n"
+	} else {
+		detailHeader = " JOBS [active]\n"
+	}
 
 	listView := m.list.View()
 	detailView := m.detail.View()
+	if m.focus == focusDetail {
+		detailView = m.detail.ViewFocused()
+	}
 
 	selected := m.list.SelectedPipeline()
 	statusBar := fmt.Sprintf(" #%s  %s  %s  \"%s\"  by %s\n",
