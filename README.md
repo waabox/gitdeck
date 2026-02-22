@@ -6,6 +6,10 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/waabox/gitdeck)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+<p align="center">
+  <img src="./assets/logo-plain.png" width="30%" />
+</p>
+
 A terminal UI for monitoring CI/CD pipelines. Run it from any git repository and get an instant overview of pipeline runs and job statuses — no browser required.
 
 Supports **GitHub Actions** and **GitLab CI/CD** (cloud and self-hosted).
