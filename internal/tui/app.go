@@ -120,14 +120,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.focus = focusList
 			}
-		case "j", "down":
+		case "down":
 			if m.focus == focusList {
 				m.list = m.list.MoveDown()
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
 			} else {
 				m.detail = m.detail.MoveDown()
 			}
-		case "k", "up":
+		case "up":
 			if m.focus == focusList {
 				m.list = m.list.MoveUp()
 				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
@@ -178,7 +178,7 @@ func (m AppModel) View() string {
 		selected.ID, selected.Branch,
 		shortSHA(selected.CommitSHA), selected.CommitMsg, selected.Author)
 
-	footer := " j/k: navigate   tab: switch panel   enter: select   r: refresh   q: quit\n"
+	footer := " ↑/↓: navigate   tab: switch panel   enter: select   r: refresh   q: quit\n"
 
 	return header + separator +
 		listHeader + listView + "\n" +
