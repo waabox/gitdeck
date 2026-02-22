@@ -64,6 +64,11 @@ brew tap waabox/gitdeck
 brew install gitdeck
 ```
 
+> **Note:** The binary is not yet signed with an Apple Developer certificate, so macOS may flag it as unverified. If that happens, remove the quarantine attribute:
+> ```bash
+> xattr -d com.apple.quarantine $(which gitdeck)
+> ```
+
 ### Linux (Debian/Ubuntu)
 
 ```bash
