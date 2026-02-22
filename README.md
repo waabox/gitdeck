@@ -13,7 +13,20 @@
   </a>
 </p>
 
-A terminal UI for monitoring CI/CD pipelines. Run it from any git repository and get an instant overview of pipeline runs and job statuses — no browser required.
+<p align="center">
+  <strong>A terminal UI for monitoring CI/CD pipelines.</strong><br/>
+  Run it from any git repository and get an instant overview of pipeline runs and job statuses — no browser required.
+</p>
+
+<p align="center">
+  <img src="./assets/demo.gif" width="80%" alt="gitdeck demo" />
+</p>
+
+## Why Gitdeck?
+
+- **Stop alt-tabbing to GitHub/GitLab** just to check if green turned red.
+- **Check pipelines on any repo in 2 keystrokes**: `cd repo && gitdeck`.
+- **Works everywhere** — SSH boxes, remote dev containers, headless servers. No browser needed.
 
 For full documentation, configuration details and keyboard shortcuts see the **[gitdeck wiki](https://github.com/waabox/gitdeck/wiki)**.
 
