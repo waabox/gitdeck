@@ -336,8 +336,9 @@ func (m AppModel) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress 'ctrl+r' to retry or 'q' to quit.\n", m.err)
 	}
 
-	header := fmt.Sprintf(" gitdeck  %s/%s  q:quit  ctrl+r:refresh  r:rerun  x:cancel\n",
-		m.repo.Owner, m.repo.Name)
+	selected := m.list.SelectedPipeline()
+	header := fmt.Sprintf(" gitdeck | %s / ⎇ %s %s / %s\n",
+		m.repo.Name, selected.Branch, shortSHA(selected.CommitSHA), firstLine(selected.CommitMsg))
 	separator := "────────────────────────────────────────────────────────────\n"
 
 	listHeader := " PIPELINES\n"
@@ -353,13 +354,12 @@ func (m AppModel) View() string {
 	if m.focus == focusDetail {
 		detailView = m.detail.ViewFocused()
 	}
-
-	selected := m.list.SelectedPipeline()
-	statusBar := fmt.Sprintf(" #%s  %s  %s  \"%s\"  by %s\n",
-		selected.ID, selected.Branch,
-		shortSHA(selected.CommitSHA), selected.CommitMsg, selected.Author)
+	statusBar := fmt.Sprintf("#%s by %s\n", selected.ID, selected.Author)
 
 	footer := " ↑/↓: navigate   tab: switch panel   enter: select/expand   ctrl+r: refresh   r: rerun   x: cancel   q: quit\n"
+	if m.focus == focusDetail {
+		footer = " ↑/↓: navigate   tab: switch panel   enter: expand   l: logs   r: rerun   x: cancel   q: quit\n"
+	}
 	if m.confirmAction == "rerun" {
 		footer = fmt.Sprintf(" Rerun pipeline #%s on %s? [y/N] \n", selected.ID, selected.Branch)
 	}
@@ -370,7 +370,7 @@ func (m AppModel) View() string {
 	return header + separator +
 		listHeader + listView + "\n" +
 		detailHeader + detailView + "\n" +
-		separator + statusBar + footer
+		separator + statusBar + separator + footer
 }
 
 // Run starts the Bubbletea program. Exits on error.
@@ -380,6 +380,13 @@ func Run(repo domain.Repository, provider domain.PipelineProvider) {
 		fmt.Fprintf(os.Stderr, "gitdeck error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+func firstLine(s string) string {
+	if i := strings.IndexByte(s, '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s
 }
 
 func shortSHA(sha string) string {
