@@ -5,6 +5,7 @@
 [![Latest Release](https://img.shields.io/github/v/release/waabox/gitdeck)](https://github.com/waabox/gitdeck/releases/latest)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/waabox/gitdeck)](go.mod)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Wiki](https://img.shields.io/badge/wiki-documentation-blue?logo=github)](https://github.com/waabox/gitdeck/wiki)
 
 <p align="center">
   <a href="https://github.com/waabox/gitdeck/wiki">
