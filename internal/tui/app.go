@@ -24,6 +24,12 @@ type pipelineDetailMsg struct {
 // tickMsg is sent by the auto-refresh ticker.
 type tickMsg struct{}
 
+// actionResultMsg is sent when a pipeline action (rerun, cancel) completes.
+type actionResultMsg struct {
+	action string
+	err    error
+}
+
 // focusPanel indicates which panel has keyboard focus.
 type focusPanel int
 
@@ -34,15 +40,16 @@ const (
 
 // AppModel is the root Bubbletea model for gitdeck.
 type AppModel struct {
-	repo     domain.Repository
-	provider domain.PipelineProvider
-	list     PipelineListModel
-	detail   JobDetailModel
-	focus    focusPanel
-	loading  bool
-	err      error
-	width    int
-	height   int
+	repo          domain.Repository
+	provider      domain.PipelineProvider
+	list          PipelineListModel
+	detail        JobDetailModel
+	focus         focusPanel
+	loading       bool
+	err           error
+	width         int
+	height        int
+	confirmAction string // "rerun" | "cancel" | ""
 }
 
 // NewAppModel creates the root application model.
@@ -72,6 +79,20 @@ func (m AppModel) loadPipelineDetail(id string) tea.Cmd {
 	return func() tea.Msg {
 		pipeline, err := m.provider.GetPipeline(m.repo, domain.PipelineID(id))
 		return pipelineDetailMsg{pipeline: pipeline, err: err}
+	}
+}
+
+func (m AppModel) rerunPipeline(id string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.provider.RerunPipeline(m.repo, domain.PipelineID(id))
+		return actionResultMsg{action: "rerun", err: err}
+	}
+}
+
+func (m AppModel) cancelPipeline(id string) tea.Cmd {
+	return func() tea.Msg {
+		err := m.provider.CancelPipeline(m.repo, domain.PipelineID(id))
+		return actionResultMsg{action: "cancel", err: err}
 	}
 }
 
@@ -126,13 +147,44 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tea.Batch(cmds...)
 
+	case actionResultMsg:
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		m.loading = true
+		return m, m.loadPipelines()
+
 	case tea.KeyMsg:
+		// Any key dismisses the confirmation prompt (except y which confirms, and q/ctrl+c which quit).
+		if m.confirmAction != "" {
+			switch msg.String() {
+			case "y":
+				action := m.confirmAction
+				m.confirmAction = ""
+				if action == "rerun" {
+					return m, m.rerunPipeline(m.list.SelectedPipeline().ID)
+				}
+				return m, m.cancelPipeline(m.list.SelectedPipeline().ID)
+			case "q", "ctrl+c":
+				return m, tea.Quit
+			default:
+				m.confirmAction = ""
+				return m, nil
+			}
+		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
-		case "r":
+		case "ctrl+r":
 			m.loading = true
 			return m, m.loadPipelines()
+		case "r":
+			m.confirmAction = "rerun"
+			return m, nil
+		case "x":
+			m.confirmAction = "cancel"
+			return m, nil
 		case "tab":
 			if m.focus == focusList {
 				m.focus = focusDetail
@@ -166,14 +218,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the full TUI.
 func (m AppModel) View() string {
-	if m.loading {
+	if m.loading && m.confirmAction == "" {
 		return "Loading pipelines...\n"
 	}
 	if m.err != nil {
-		return fmt.Sprintf("Error: %v\n\nPress 'r' to retry or 'q' to quit.\n", m.err)
+		return fmt.Sprintf("Error: %v\n\nPress 'ctrl+r' to retry or 'q' to quit.\n", m.err)
 	}
 
-	header := fmt.Sprintf(" gitdeck  %s/%s  q:quit  r:refresh\n",
+	header := fmt.Sprintf(" gitdeck  %s/%s  q:quit  ctrl+r:refresh  r:rerun  x:cancel\n",
 		m.repo.Owner, m.repo.Name)
 	separator := "────────────────────────────────────────────────────────────\n"
 
@@ -196,7 +248,13 @@ func (m AppModel) View() string {
 		selected.ID, selected.Branch,
 		shortSHA(selected.CommitSHA), selected.CommitMsg, selected.Author)
 
-	footer := " ↑/↓: navigate   tab: switch panel   enter: select/expand   r: refresh   q: quit\n"
+	footer := " ↑/↓: navigate   tab: switch panel   enter: select/expand   ctrl+r: refresh   r: rerun   x: cancel   q: quit\n"
+	if m.confirmAction == "rerun" {
+		footer = fmt.Sprintf(" Rerun pipeline #%s on %s? [y/N] \n", selected.ID, selected.Branch)
+	}
+	if m.confirmAction == "cancel" {
+		footer = fmt.Sprintf(" Cancel pipeline #%s on %s? [y/N] \n", selected.ID, selected.Branch)
+	}
 
 	return header + separator +
 		listHeader + listView + "\n" +
