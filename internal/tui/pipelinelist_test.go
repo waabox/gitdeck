@@ -61,3 +61,53 @@ func TestPipelineListModel_DoesNotGoAboveZero(t *testing.T) {
 		t.Errorf("expected selected index 0, got %d", m.SelectedIndex())
 	}
 }
+
+func TestPipelineListModel_UpdatePipelines_PreservesCursor(t *testing.T) {
+	original := []domain.Pipeline{
+		{ID: "1", Branch: "main", Status: domain.StatusSuccess},
+		{ID: "2", Branch: "feat/auth", Status: domain.StatusRunning},
+		{ID: "3", Branch: "fix/bug", Status: domain.StatusFailed},
+	}
+	m := tui.NewPipelineListModel(original)
+	m = m.MoveDown() // cursor on ID "2"
+
+	updated := []domain.Pipeline{
+		{ID: "1", Branch: "main", Status: domain.StatusSuccess},
+		{ID: "2", Branch: "feat/auth", Status: domain.StatusSuccess}, // status changed
+		{ID: "3", Branch: "fix/bug", Status: domain.StatusFailed},
+	}
+	m = m.UpdatePipelines(updated)
+
+	if m.SelectedIndex() != 1 {
+		t.Errorf("expected cursor to stay at index 1, got %d", m.SelectedIndex())
+	}
+	if m.SelectedPipeline().ID != "2" {
+		t.Errorf("expected selected pipeline ID '2', got '%s'", m.SelectedPipeline().ID)
+	}
+	if m.SelectedPipeline().Status != domain.StatusSuccess {
+		t.Errorf("expected updated status 'success', got '%s'", m.SelectedPipeline().Status)
+	}
+}
+
+func TestPipelineListModel_UpdatePipelines_ResetsWhenPipelineGone(t *testing.T) {
+	original := []domain.Pipeline{
+		{ID: "1", Branch: "main"},
+		{ID: "2", Branch: "feat/auth"},
+	}
+	m := tui.NewPipelineListModel(original)
+	m = m.MoveDown() // cursor on ID "2"
+
+	// New list no longer contains ID "2".
+	updated := []domain.Pipeline{
+		{ID: "1", Branch: "main"},
+		{ID: "3", Branch: "feat/new"},
+	}
+	m = m.UpdatePipelines(updated)
+
+	if m.SelectedIndex() != 0 {
+		t.Errorf("expected cursor to reset to 0, got %d", m.SelectedIndex())
+	}
+	if m.SelectedPipeline().ID != "1" {
+		t.Errorf("expected selected pipeline ID '1', got '%s'", m.SelectedPipeline().ID)
+	}
+}

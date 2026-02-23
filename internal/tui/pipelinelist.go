@@ -50,6 +50,22 @@ func (m PipelineListModel) SelectedPipeline() domain.Pipeline {
 }
 
 
+// UpdatePipelines returns a new model with updated pipeline data while
+// preserving the cursor on the same pipeline (matched by ID). If the
+// previously selected pipeline is no longer present, the cursor resets to 0.
+func (m PipelineListModel) UpdatePipelines(pipelines []domain.Pipeline) PipelineListModel {
+	if len(pipelines) == 0 {
+		return NewPipelineListModel(pipelines)
+	}
+	selected := m.SelectedPipeline()
+	for i, p := range pipelines {
+		if p.ID == selected.ID {
+			return PipelineListModel{pipelines: pipelines, cursor: i}
+		}
+	}
+	return NewPipelineListModel(pipelines)
+}
+
 // Pipelines returns the full pipeline slice.
 func (m PipelineListModel) Pipelines() []domain.Pipeline {
 	return m.pipelines

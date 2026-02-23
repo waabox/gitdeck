@@ -59,7 +59,8 @@ type AppModel struct {
 	err           error
 	width         int
 	height        int
-	confirmAction string // "rerun" | "cancel" | ""
+	confirmAction    string          // "rerun" | "cancel" | ""
+	selectedPipeline domain.Pipeline // stable selection, survives refresh
 	// Log viewer state
 	logMode    bool
 	logLoading bool
@@ -149,10 +150,24 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 			return m, nil
 		}
-		m.list = NewPipelineListModel(msg.Pipelines)
-		// Pre-populate the detail model if the selected pipeline already carries jobs.
-		if len(msg.Pipelines) > 0 && len(msg.Pipelines[0].Jobs) > 0 {
-			m.detail = NewJobDetailModel(msg.Pipelines[0].Jobs)
+		if len(m.list.Pipelines()) == 0 {
+			// First load: create list and auto-select first pipeline.
+			m.list = NewPipelineListModel(msg.Pipelines)
+			if len(msg.Pipelines) > 0 {
+				m.selectedPipeline = msg.Pipelines[0]
+				if len(msg.Pipelines[0].Jobs) > 0 {
+					m.detail = NewJobDetailModel(msg.Pipelines[0].Jobs)
+				}
+			}
+		} else {
+			// Subsequent refreshes: update data, preserve cursor.
+			m.list = m.list.UpdatePipelines(msg.Pipelines)
+			for _, p := range msg.Pipelines {
+				if p.ID == m.selectedPipeline.ID {
+					m.selectedPipeline = p
+					break
+				}
+			}
 		}
 
 	case pipelineDetailMsg:
@@ -163,14 +178,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detail = NewJobDetailModel(msg.pipeline.Jobs)
 
 	case tickMsg:
-		selected := m.list.SelectedPipeline()
 		interval := 30 * time.Second
 		if anyRunning(m.list.Pipelines()) {
 			interval = 5 * time.Second
 		}
 		cmds := []tea.Cmd{m.loadPipelines(), tickEvery(interval)}
-		if selected.Status == domain.StatusRunning && selected.ID != "" {
-			cmds = append(cmds, m.loadPipelineDetail(selected.ID))
+		if m.selectedPipeline.Status == domain.StatusRunning && m.selectedPipeline.ID != "" {
+			cmds = append(cmds, m.loadPipelineDetail(m.selectedPipeline.ID))
 		}
 		return m, tea.Batch(cmds...)
 
@@ -199,17 +213,16 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.confirmAction != "" {
 			switch msg.String() {
 			case "y":
-				selected := m.list.SelectedPipeline()
-				if selected.ID == "" {
+				if m.selectedPipeline.ID == "" {
 					m.confirmAction = ""
 					return m, nil
 				}
 				action := m.confirmAction
 				m.confirmAction = ""
 				if action == "rerun" {
-					return m, m.rerunPipeline(selected.ID)
+					return m, m.rerunPipeline(m.selectedPipeline.ID)
 				}
-				return m, m.cancelPipeline(selected.ID)
+				return m, m.cancelPipeline(m.selectedPipeline.ID)
 			case "q", "ctrl+c":
 				return m, tea.Quit
 			default:
@@ -249,7 +262,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.focus == focusList {
 				m.list = m.list.MoveDown()
-				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
+				m.selectedPipeline = m.list.SelectedPipeline()
+				return m, m.loadPipelineDetail(m.selectedPipeline.ID)
 			}
 			m.detail = m.detail.MoveDown()
 		case "up":
@@ -261,13 +275,15 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			if m.focus == focusList {
 				m.list = m.list.MoveUp()
-				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
+				m.selectedPipeline = m.list.SelectedPipeline()
+				return m, m.loadPipelineDetail(m.selectedPipeline.ID)
 			}
 			m.detail = m.detail.MoveUp()
 		case "enter":
 			if m.focus == focusList {
 				m.focus = focusDetail
-				return m, m.loadPipelineDetail(m.list.SelectedPipeline().ID)
+				m.selectedPipeline = m.list.SelectedPipeline()
+				return m, m.loadPipelineDetail(m.selectedPipeline.ID)
 			}
 			m.detail = m.detail.ToggleExpand(m.detail.Cursor())
 		case "l":
@@ -336,7 +352,7 @@ func (m AppModel) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress 'ctrl+r' to retry or 'q' to quit.\n", m.err)
 	}
 
-	selected := m.list.SelectedPipeline()
+	selected := m.selectedPipeline
 	header := fmt.Sprintf(" gitdeck | %s / ⎇ %s %s / %s\n",
 		m.repo.Name, selected.Branch, shortSHA(selected.CommitSHA), firstLine(selected.CommitMsg))
 	separator := "────────────────────────────────────────────────────────────\n"
