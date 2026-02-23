@@ -89,6 +89,57 @@ func (f *GitLabDeviceFlow) RequestCode(ctx context.Context) (DeviceCodeResponse,
 	}, nil
 }
 
+// RefreshToken exchanges a refresh token for a new access token and refresh token.
+// See https://docs.gitlab.com/ee/api/oauth2.html#access-token-expiration
+func (f *GitLabDeviceFlow) RefreshToken(ctx context.Context, refreshToken string) (TokenResponse, error) {
+	data := url.Values{}
+	data.Set("client_id", f.clientID)
+	data.Set("refresh_token", refreshToken)
+	data.Set("grant_type", "refresh_token")
+
+	endpoint, err := url.JoinPath(f.baseURL, "/oauth/token")
+	if err != nil {
+		return TokenResponse{}, fmt.Errorf("building URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(data.Encode()))
+	if err != nil {
+		return TokenResponse{}, fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := f.client.Do(req)
+	if err != nil {
+		return TokenResponse{}, fmt.Errorf("refreshing token: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var errBody struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		if decErr := json.NewDecoder(resp.Body).Decode(&errBody); decErr == nil && errBody.Error != "" {
+			return TokenResponse{}, fmt.Errorf("token refresh failed (HTTP %d): %s — %s",
+				resp.StatusCode, errBody.Error, errBody.ErrorDescription)
+		}
+		return TokenResponse{}, fmt.Errorf("token refresh failed with HTTP %d", resp.StatusCode)
+	}
+
+	var raw struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return TokenResponse{}, fmt.Errorf("decoding refresh response: %w", err)
+	}
+	return TokenResponse{
+		AccessToken:  raw.AccessToken,
+		RefreshToken: raw.RefreshToken,
+	}, nil
+}
+
 // PollToken polls the GitLab token endpoint until an access token is granted or an error occurs.
 // interval is the polling interval in seconds; pass 0 to skip the sleep delay (useful in tests).
 // ctx is used to cancel the polling loop (e.g. when the user quits the TUI).

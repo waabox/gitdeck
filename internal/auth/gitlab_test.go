@@ -153,6 +153,65 @@ func TestGitLabDeviceFlow_PollToken_CancelledContext(t *testing.T) {
 	}
 }
 
+func TestGitLabDeviceFlow_RefreshToken_ReturnsNewTokens(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/oauth/token" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST, got %s", r.Method)
+		}
+		if err := r.ParseForm(); err != nil {
+			t.Fatal(err)
+		}
+		if r.FormValue("grant_type") != "refresh_token" {
+			t.Errorf("expected grant_type=refresh_token, got %s", r.FormValue("grant_type"))
+		}
+		if r.FormValue("refresh_token") != "old_refresh" {
+			t.Errorf("expected refresh_token=old_refresh, got %s", r.FormValue("refresh_token"))
+		}
+		if r.FormValue("client_id") != "test_client_id" {
+			t.Errorf("expected client_id=test_client_id, got %s", r.FormValue("client_id"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"access_token":  "new_access",
+			"refresh_token": "new_refresh",
+		})
+	}))
+	defer server.Close()
+
+	flow := auth.NewGitLabDeviceFlow("test_client_id", server.URL)
+	resp, err := flow.RefreshToken(context.Background(), "old_refresh")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.AccessToken != "new_access" {
+		t.Errorf("access_token: want 'new_access', got '%s'", resp.AccessToken)
+	}
+	if resp.RefreshToken != "new_refresh" {
+		t.Errorf("refresh_token: want 'new_refresh', got '%s'", resp.RefreshToken)
+	}
+}
+
+func TestGitLabDeviceFlow_RefreshToken_ReturnsErrorOnFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":             "invalid_grant",
+			"error_description": "refresh token revoked",
+		})
+	}))
+	defer server.Close()
+
+	flow := auth.NewGitLabDeviceFlow("test_client_id", server.URL)
+	_, err := flow.RefreshToken(context.Background(), "revoked_refresh")
+	if err == nil {
+		t.Fatal("expected error for revoked refresh token, got nil")
+	}
+}
+
 func TestGitLabDeviceFlow_PollToken_ReturnsRefreshToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
