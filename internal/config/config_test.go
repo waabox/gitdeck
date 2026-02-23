@@ -113,6 +113,48 @@ func TestSave_WritesAndReloadsCorrectly(t *testing.T) {
 	}
 }
 
+func TestLoadFrom_ReadsGitLabRefreshToken(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	content := `
+[gitlab]
+token = "glpat-abc"
+refresh_token = "glrt-xyz"
+url = "https://gitlab.example.com"
+`
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.LoadFrom(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.GitLab.RefreshToken != "glrt-xyz" {
+		t.Errorf("expected refresh_token 'glrt-xyz', got '%s'", cfg.GitLab.RefreshToken)
+	}
+}
+
+func TestSave_PersistsGitLabRefreshToken(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	cfg := config.Config{}
+	cfg.GitLab.Token = "glpat-abc"
+	cfg.GitLab.RefreshToken = "glrt-xyz"
+
+	if err := config.Save(path, cfg); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	loaded, err := config.LoadFrom(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if loaded.GitLab.RefreshToken != "glrt-xyz" {
+		t.Errorf("expected refresh_token 'glrt-xyz', got '%s'", loaded.GitLab.RefreshToken)
+	}
+}
+
 func TestSave_CreatesParentDirectory(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "nested", "dir", "config.toml")

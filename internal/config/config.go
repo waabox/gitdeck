@@ -16,9 +16,10 @@ type GitHubConfig struct {
 
 // GitLabConfig holds authentication configuration for GitLab.
 type GitLabConfig struct {
-	ClientID string `toml:"client_id"`
-	Token    string `toml:"token"`
-	URL      string `toml:"url"`
+	ClientID     string `toml:"client_id"`
+	Token        string `toml:"token"`
+	RefreshToken string `toml:"refresh_token"`
+	URL          string `toml:"url"`
 }
 
 // Config holds all gitdeck configuration.
