@@ -93,6 +93,9 @@ func (a *Adapter) get(url string, target interface{}) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("github API error: %s: %w", resp.Status, domain.ErrUnauthorized)
+	}
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("github API error: %s", resp.Status)
 	}
@@ -117,6 +120,9 @@ func (a *Adapter) getText(url string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", fmt.Errorf("github API error: %s: %w", resp.Status, domain.ErrUnauthorized)
+	}
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("github API error: %s", resp.Status)
 	}
@@ -143,6 +149,9 @@ func (a *Adapter) post(url string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("github API error: %s: %w", resp.Status, domain.ErrUnauthorized)
+	}
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("github API error: %s", resp.Status)
 	}

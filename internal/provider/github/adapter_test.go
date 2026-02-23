@@ -2,6 +2,7 @@ package github_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -207,6 +208,60 @@ func TestGetPipeline_ParsesJobSteps(t *testing.T) {
 	}
 	if job.Steps[1].Status != domain.StatusRunning {
 		t.Errorf("expected second step status running, got '%s'", job.Steps[1].Status)
+	}
+}
+
+func TestListPipelines_Returns_ErrUnauthorized_On401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	adapter := githubprovider.NewAdapter("expired-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "owner", Name: "repo"}
+
+	_, err := adapter.ListPipelines(repo)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, domain.ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got: %v", err)
+	}
+}
+
+func TestGetJobLogs_Returns_ErrUnauthorized_On401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	adapter := githubprovider.NewAdapter("expired-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "owner", Name: "repo"}
+
+	_, err := adapter.GetJobLogs(repo, domain.JobID("123"))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, domain.ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got: %v", err)
+	}
+}
+
+func TestRerunPipeline_Returns_ErrUnauthorized_On401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	adapter := githubprovider.NewAdapter("expired-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "owner", Name: "repo"}
+
+	err := adapter.RerunPipeline(repo, domain.PipelineID("123"))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, domain.ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got: %v", err)
 	}
 }
 

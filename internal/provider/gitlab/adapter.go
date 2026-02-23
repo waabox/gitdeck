@@ -92,6 +92,9 @@ func (a *Adapter) get(apiURL string, target interface{}) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("gitlab API error: %s: %w", resp.Status, domain.ErrUnauthorized)
+	}
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("gitlab API error: %s", resp.Status)
 	}
@@ -112,6 +115,9 @@ func (a *Adapter) getText(apiURL string) (string, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return "", fmt.Errorf("gitlab API error: %s: %w", resp.Status, domain.ErrUnauthorized)
+	}
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("gitlab API error: %s", resp.Status)
 	}
@@ -138,6 +144,9 @@ func (a *Adapter) post(apiURL string) error {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return fmt.Errorf("gitlab API error: %s: %w", resp.Status, domain.ErrUnauthorized)
+	}
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("gitlab API error: %s", resp.Status)
 	}

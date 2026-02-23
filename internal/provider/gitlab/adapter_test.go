@@ -2,6 +2,7 @@ package gitlab_test
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -158,6 +159,60 @@ func TestRerunPipeline_PostsToRetryEndpoint(t *testing.T) {
 	}
 	if !rerunCalled {
 		t.Error("expected retry endpoint to be called")
+	}
+}
+
+func TestListPipelines_Returns_ErrUnauthorized_On401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	adapter := gitlabprovider.NewAdapter("expired-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "mygroup", Name: "myproject"}
+
+	_, err := adapter.ListPipelines(repo)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, domain.ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got: %v", err)
+	}
+}
+
+func TestGetJobLogs_Returns_ErrUnauthorized_On401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	adapter := gitlabprovider.NewAdapter("expired-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "mygroup", Name: "myproject"}
+
+	_, err := adapter.GetJobLogs(repo, domain.JobID("123"))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, domain.ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got: %v", err)
+	}
+}
+
+func TestRerunPipeline_Returns_ErrUnauthorized_On401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	adapter := gitlabprovider.NewAdapter("expired-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "mygroup", Name: "myproject"}
+
+	err := adapter.RerunPipeline(repo, domain.PipelineID("123"))
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !errors.Is(err, domain.ErrUnauthorized) {
+		t.Errorf("expected ErrUnauthorized, got: %v", err)
 	}
 }
 
