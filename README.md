@@ -45,15 +45,14 @@ On first run gitdeck will authenticate via OAuth Device Flow — just open a lin
 
 ## Features
 
+- Hierarchical drill-down navigation: Pipelines → Jobs → Steps
 - Live pipeline list with status icons and durations
-- Job detail panel with per-job navigation
-- Per-job step detail: press `enter` on a job to expand its individual steps inline
 - Auto-refresh every 5 seconds
 - Configurable number of pipelines to display (default: 3)
 - OAuth Device Flow authentication for GitHub and GitLab (no manual token copy-paste)
 - Config via `~/.config/gitdeck/config.toml` with environment variable overrides
 - Auto-detects repository from the current working directory
-- View full raw job logs in a fullscreen scrollable panel (press `l` on a job)
+- View full raw job logs from Jobs or Steps view (press `l`)
 - Re-run or cancel any pipeline with a single keypress and inline confirmation
 
 ## Installation
@@ -162,15 +161,14 @@ If you prefer to use your own OAuth credentials instead of the built-in ones:
 
 | Key              | Action                                        |
 |------------------|-----------------------------------------------|
-| `↑` / `↓`        | Navigate pipelines or jobs / scroll logs      |
-| `Enter`          | Select pipeline, focus job detail panel       |
-| `Tab`            | Switch focus between panels                   |
-| `l`              | View full logs for selected job (fullscreen)  |
+| `↑` / `↓`        | Navigate items / scroll logs                  |
+| `Enter`          | Drill down: Pipelines → Jobs → Steps          |
+| `Esc`            | Go back: Steps → Jobs → Pipelines             |
+| `l`              | View full logs (from Jobs or Steps view)      |
 | `r`              | Re-run selected pipeline (asks confirmation)  |
 | `x`              | Cancel selected pipeline (asks confirmation)  |
 | `PgUp` / `PgDn`  | Scroll logs by page (in log viewer)           |
 | `g` / `G`        | Jump to top / bottom of log (in log viewer)   |
-| `Esc`            | Exit log viewer / return focus to pipelines   |
 | `ctrl+r`         | Refresh pipelines now                         |
 | `q` / `Ctrl+C`   | Quit                                          |
 
