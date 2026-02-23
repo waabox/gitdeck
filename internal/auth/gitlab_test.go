@@ -59,12 +59,12 @@ func TestGitLabDeviceFlow_PollToken_ReturnsTokenOnSuccess(t *testing.T) {
 	defer server.Close()
 
 	flow := auth.NewGitLabDeviceFlow("test_client_id", server.URL)
-	token, err := flow.PollToken(context.Background(), "gl_dev_abc", 0)
+	resp, err := flow.PollToken(context.Background(), "gl_dev_abc", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if token != "glpat_real_token" {
-		t.Errorf("token: want 'glpat_real_token', got '%s'", token)
+	if resp.AccessToken != "glpat_real_token" {
+		t.Errorf("token: want 'glpat_real_token', got '%s'", resp.AccessToken)
 	}
 }
 
@@ -110,12 +110,12 @@ func TestGitLabDeviceFlow_PollToken_SlowDownIncreasesInterval(t *testing.T) {
 	defer server.Close()
 
 	flow := auth.NewGitLabDeviceFlow("test_client_id", server.URL)
-	token, err := flow.PollToken(context.Background(), "gl_dev_abc", 0)
+	resp, err := flow.PollToken(context.Background(), "gl_dev_abc", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if token != "glpat_after_slowdown" {
-		t.Errorf("token: want 'glpat_after_slowdown', got '%s'", token)
+	if resp.AccessToken != "glpat_after_slowdown" {
+		t.Errorf("token: want 'glpat_after_slowdown', got '%s'", resp.AccessToken)
 	}
 	if callCount != 2 {
 		t.Errorf("expected 2 poll calls, got %d", callCount)
@@ -150,5 +150,25 @@ func TestGitLabDeviceFlow_PollToken_CancelledContext(t *testing.T) {
 	_, err := flow.PollToken(ctx, "gl_dev_abc", 0)
 	if err == nil {
 		t.Fatal("expected error for cancelled context, got nil")
+	}
+}
+
+func TestGitLabDeviceFlow_PollToken_ReturnsRefreshToken(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{
+			"access_token":  "glpat_abc",
+			"refresh_token": "glrt_xyz",
+		})
+	}))
+	defer server.Close()
+
+	flow := auth.NewGitLabDeviceFlow("test_client_id", server.URL)
+	resp, err := flow.PollToken(context.Background(), "gl_dev_abc", 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.RefreshToken != "glrt_xyz" {
+		t.Errorf("refresh_token: want 'glrt_xyz', got '%s'", resp.RefreshToken)
 	}
 }

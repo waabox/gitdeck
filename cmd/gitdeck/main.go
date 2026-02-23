@@ -60,24 +60,25 @@ func main() {
 	ctx := context.Background()
 
 	if strings.Contains(repo.RemoteURL, "github.com") && cfg.GitHub.Token == "" {
-		token, authErr := runGitHubAuth(ctx, cfg.GitHub.ClientID)
+		resp, authErr := runGitHubAuth(ctx, cfg.GitHub.ClientID)
 		if authErr != nil {
 			fmt.Fprintf(os.Stderr, "GitHub authentication failed: %v\n", authErr)
 			os.Exit(1)
 		}
-		cfg.GitHub.Token = token
+		cfg.GitHub.Token = resp.AccessToken
 		if saveErr := config.Save(configPath, cfg); saveErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not save token to config: %v (you will need to re-authenticate next run)\n", saveErr)
 		} else {
 			fmt.Fprintf(os.Stderr, "Authenticated. Token saved to %s\n", configPath)
 		}
 	} else if isGitLabRemote(repo.RemoteURL, cfg.GitLab.URL) && cfg.GitLab.Token == "" {
-		token, authErr := runGitLabAuth(ctx, cfg.GitLab.ClientID, cfg.GitLab.URL)
+		resp, authErr := runGitLabAuth(ctx, cfg.GitLab.ClientID, cfg.GitLab.URL)
 		if authErr != nil {
 			fmt.Fprintf(os.Stderr, "GitLab authentication failed: %v\n", authErr)
 			os.Exit(1)
 		}
-		cfg.GitLab.Token = token
+		cfg.GitLab.Token = resp.AccessToken
+		cfg.GitLab.RefreshToken = resp.RefreshToken
 		if saveErr := config.Save(configPath, cfg); saveErr != nil {
 			fmt.Fprintf(os.Stderr, "warning: could not save token to config: %v (you will need to re-authenticate next run)\n", saveErr)
 		} else {
@@ -116,14 +117,14 @@ func isGitLabRemote(remoteURL string, configuredURL string) bool {
 // runGitHubAuth runs the GitHub Device Authorization Flow interactively.
 // All prompts are written to stderr so stdout remains clean for piping.
 // It blocks until the user completes authorization or an error occurs.
-func runGitHubAuth(ctx context.Context, clientID string) (string, error) {
+func runGitHubAuth(ctx context.Context, clientID string) (auth.TokenResponse, error) {
 	if clientID == "" {
 		clientID = defaultGitHubClientID
 	}
 	flow := auth.NewGitHubDeviceFlow(clientID, "")
 	code, err := flow.RequestCode(ctx)
 	if err != nil {
-		return "", fmt.Errorf("requesting device code: %w", err)
+		return auth.TokenResponse{}, fmt.Errorf("requesting device code: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "No GitHub token found. Starting OAuth authentication...\n")
 	fmt.Fprintf(os.Stderr, "Visit:      %s\n", code.VerificationURI)
@@ -137,14 +138,14 @@ func runGitHubAuth(ctx context.Context, clientID string) (string, error) {
 // runGitLabAuth runs the GitLab Device Authorization Flow interactively.
 // All prompts are written to stderr so stdout remains clean for piping.
 // baseURL is the GitLab instance base URL; pass empty string for gitlab.com.
-func runGitLabAuth(ctx context.Context, clientID string, baseURL string) (string, error) {
+func runGitLabAuth(ctx context.Context, clientID string, baseURL string) (auth.TokenResponse, error) {
 	if clientID == "" {
 		clientID = defaultGitLabClientID
 	}
 	flow := auth.NewGitLabDeviceFlow(clientID, baseURL)
 	code, err := flow.RequestCode(ctx)
 	if err != nil {
-		return "", fmt.Errorf("requesting device code: %w", err)
+		return auth.TokenResponse{}, fmt.Errorf("requesting device code: %w", err)
 	}
 	fmt.Fprintf(os.Stderr, "No GitLab token found. Starting OAuth authentication...\n")
 	fmt.Fprintf(os.Stderr, "Visit:      %s\n", code.VerificationURI)

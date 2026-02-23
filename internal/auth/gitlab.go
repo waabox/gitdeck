@@ -93,7 +93,7 @@ func (f *GitLabDeviceFlow) RequestCode(ctx context.Context) (DeviceCodeResponse,
 // interval is the polling interval in seconds; pass 0 to skip the sleep delay (useful in tests).
 // ctx is used to cancel the polling loop (e.g. when the user quits the TUI).
 // Handles authorization_pending, slow_down, expired_token, and access_denied error codes.
-func (f *GitLabDeviceFlow) PollToken(ctx context.Context, deviceCode string, interval int) (string, error) {
+func (f *GitLabDeviceFlow) PollToken(ctx context.Context, deviceCode string, interval int) (TokenResponse, error) {
 	if interval <= 0 {
 		// interval=0 means no sleep (test mode); negative is treated as no-sleep too
 		interval = 0
@@ -101,7 +101,7 @@ func (f *GitLabDeviceFlow) PollToken(ctx context.Context, deviceCode string, int
 
 	tokenEndpoint, err := url.JoinPath(f.baseURL, "/oauth/token")
 	if err != nil {
-		return "", fmt.Errorf("building URL: %w", err)
+		return TokenResponse{}, fmt.Errorf("building URL: %w", err)
 	}
 
 	for {
@@ -109,12 +109,12 @@ func (f *GitLabDeviceFlow) PollToken(ctx context.Context, deviceCode string, int
 			select {
 			case <-time.After(time.Duration(interval) * time.Second):
 			case <-ctx.Done():
-				return "", ctx.Err()
+				return TokenResponse{}, ctx.Err()
 			}
 		} else {
 			select {
 			case <-ctx.Done():
-				return "", ctx.Err()
+				return TokenResponse{}, ctx.Err()
 			default:
 			}
 		}
@@ -126,35 +126,36 @@ func (f *GitLabDeviceFlow) PollToken(ctx context.Context, deviceCode string, int
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenEndpoint, strings.NewReader(data.Encode()))
 		if err != nil {
-			return "", fmt.Errorf("creating request: %w", err)
+			return TokenResponse{}, fmt.Errorf("creating request: %w", err)
 		}
 		req.Header.Set("Accept", "application/json")
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 		resp, err := f.client.Do(req)
 		if err != nil {
-			return "", fmt.Errorf("polling token: %w", err)
+			return TokenResponse{}, fmt.Errorf("polling token: %w", err)
 		}
 
 		var raw struct {
-			AccessToken string `json:"access_token"`
-			Error       string `json:"error"`
+			AccessToken  string `json:"access_token"`
+			RefreshToken string `json:"refresh_token"`
+			Error        string `json:"error"`
 		}
 		decodeErr := json.NewDecoder(resp.Body).Decode(&raw)
 		resp.Body.Close()
 		if decodeErr != nil {
-			return "", fmt.Errorf("decoding token response: %w", decodeErr)
+			return TokenResponse{}, fmt.Errorf("decoding token response: %w", decodeErr)
 		}
 
 		switch raw.Error {
 		case "":
 			if raw.AccessToken != "" {
-				return raw.AccessToken, nil
+				return TokenResponse{AccessToken: raw.AccessToken, RefreshToken: raw.RefreshToken}, nil
 			}
 			// server returned neither token nor error — check context and retry
 			select {
 			case <-ctx.Done():
-				return "", ctx.Err()
+				return TokenResponse{}, ctx.Err()
 			default:
 			}
 		case "authorization_pending":
@@ -162,15 +163,15 @@ func (f *GitLabDeviceFlow) PollToken(ctx context.Context, deviceCode string, int
 		case "slow_down":
 			interval += 5
 		case "expired_token":
-			return "", fmt.Errorf("device code expired — run gitdeck again to restart authentication")
+			return TokenResponse{}, fmt.Errorf("device code expired — run gitdeck again to restart authentication")
 		case "access_denied":
-			return "", fmt.Errorf("access denied by user")
+			return TokenResponse{}, fmt.Errorf("access denied by user")
 		default:
 			errMsg := raw.Error
 			if len(errMsg) > 100 {
 				errMsg = errMsg[:100]
 			}
-			return "", fmt.Errorf("unexpected error from GitLab: %s", errMsg)
+			return TokenResponse{}, fmt.Errorf("unexpected error from GitLab: %s", errMsg)
 		}
 	}
 }

@@ -60,12 +60,12 @@ func TestGitHubDeviceFlow_PollToken_ReturnsTokenOnSuccess(t *testing.T) {
 
 	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
 	// interval=0 disables the sleep delay in tests
-	token, err := flow.PollToken(context.Background(), "dev_abc", 0)
+	resp, err := flow.PollToken(context.Background(), "dev_abc", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if token != "gho_real_token" {
-		t.Errorf("token: want 'gho_real_token', got '%s'", token)
+	if resp.AccessToken != "gho_real_token" {
+		t.Errorf("token: want 'gho_real_token', got '%s'", resp.AccessToken)
 	}
 }
 
@@ -111,12 +111,12 @@ func TestGitHubDeviceFlow_PollToken_SlowDownIncreasesInterval(t *testing.T) {
 	defer server.Close()
 
 	flow := auth.NewGitHubDeviceFlow("test_client_id", server.URL)
-	token, err := flow.PollToken(context.Background(), "dev_abc", 0)
+	resp, err := flow.PollToken(context.Background(), "dev_abc", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if token != "gho_after_slowdown" {
-		t.Errorf("token: want 'gho_after_slowdown', got '%s'", token)
+	if resp.AccessToken != "gho_after_slowdown" {
+		t.Errorf("token: want 'gho_after_slowdown', got '%s'", resp.AccessToken)
 	}
 	if callCount != 2 {
 		t.Errorf("expected 2 poll calls, got %d", callCount)
