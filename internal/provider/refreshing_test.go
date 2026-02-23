@@ -148,9 +148,6 @@ func TestRefreshingProvider_GetPipeline_RetriesOn401(t *testing.T) {
 
 func TestRefreshingProvider_RerunPipeline_RetriesOn401(t *testing.T) {
 	calls := 0
-	inner := &mockProvider{
-		listErr: fmt.Errorf("gitlab API error: %w", domain.ErrUnauthorized),
-	}
 	// Override RerunPipeline behavior: first call fails, second succeeds
 	rerunProvider := &failOnceRerunProvider{
 		firstErr: fmt.Errorf("gitlab API error: %w", domain.ErrUnauthorized),
@@ -167,7 +164,6 @@ func TestRefreshingProvider_RerunPipeline_RetriesOn401(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	_ = inner // suppress unused warning
 }
 
 // Test helpers

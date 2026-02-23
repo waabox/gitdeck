@@ -46,8 +46,9 @@ type LogsLoadedMsg struct {
 
 // DeviceCodeMsg carries the device code response for re-authentication.
 type DeviceCodeMsg struct {
-	Code auth.DeviceCodeResponse
-	Err  error
+	Code   auth.DeviceCodeResponse
+	Cancel context.CancelFunc
+	Err    error
 }
 
 // ReAuthCompleteMsg signals that re-authentication completed.
@@ -158,12 +159,12 @@ func (m AppModel) loadJobLogs(job domain.Job) tea.Cmd {
 func (m AppModel) requestDeviceCode() tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		_ = cancel // cancel will be stored via DeviceCodeMsg handler
 		code, err := m.OnRequestCode(ctx, m.reAuthProvider)
 		if err != nil {
 			cancel()
+			return DeviceCodeMsg{Err: err}
 		}
-		return DeviceCodeMsg{Code: code, Err: err}
+		return DeviceCodeMsg{Code: code, Cancel: cancel}
 	}
 }
 
@@ -289,9 +290,14 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.reAuthCode = msg.Code
+		m.reAuthCancel = msg.Cancel
 		return m, m.pollReAuthToken()
 
 	case ReAuthCompleteMsg:
+		if m.reAuthCancel != nil {
+			m.reAuthCancel()
+			m.reAuthCancel = nil
+		}
 		if msg.Err != nil {
 			m.err = fmt.Errorf("re-authentication failed: %w", msg.Err)
 			m.view = viewPipelines
@@ -346,6 +352,10 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateLogs(msg)
 		case viewReAuth:
 			if msg.String() == "esc" || msg.String() == "q" || msg.String() == "ctrl+c" {
+				if m.reAuthCancel != nil {
+					m.reAuthCancel()
+					m.reAuthCancel = nil
+				}
 				if msg.String() == "q" || msg.String() == "ctrl+c" {
 					return m, tea.Quit
 				}
