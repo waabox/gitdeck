@@ -72,7 +72,7 @@ func main() {
 		} else {
 			fmt.Fprintf(os.Stderr, "Authenticated. Token saved to %s\n", configPath)
 		}
-	} else if isGitLabRemote(repo.RemoteURL, cfg.GitLab.URL) && cfg.GitLab.Token == "" {
+	} else if isGitLabRemote(repo.RemoteURL, cfg.GitLab.URL) && (cfg.GitLab.Token == "" || (cfg.GitLab.Token != "" && cfg.GitLab.RefreshToken == "")) {
 		resp, authErr := runGitLabAuth(ctx, cfg.GitLab.ClientID, cfg.GitLab.URL)
 		if authErr != nil {
 			fmt.Fprintf(os.Stderr, "GitLab authentication failed: %v\n", authErr)
