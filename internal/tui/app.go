@@ -204,7 +204,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case LogsLoadedMsg:
 		m.logLoading = false
 		if msg.Err != nil {
-			m.err = msg.Err
+			// Log errors are non-fatal: stay in the current view.
 			return m, nil
 		}
 		m.logReturnView = m.view
