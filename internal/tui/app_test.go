@@ -1,11 +1,14 @@
 package tui_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/waabox/gitdeck/internal/auth"
 	"github.com/waabox/gitdeck/internal/domain"
+	"github.com/waabox/gitdeck/internal/provider"
 	"github.com/waabox/gitdeck/internal/tui"
 )
 
@@ -256,5 +259,108 @@ func TestApp_EscFromStepsReturnsToJobs(t *testing.T) {
 	view := m4.(tui.AppModel).View()
 	if !strings.Contains(view, "Jobs for Pipeline") {
 		t.Errorf("expected jobs view after esc from steps, got:\n%s", view)
+	}
+}
+
+func TestApp_AuthExpiredError_ShowsReAuthView(t *testing.T) {
+	pipelines := []domain.Pipeline{{ID: "1", Branch: "main"}}
+	prov := &fakeProvider{pipelines: pipelines}
+	m := tui.NewAppModel(domain.Repository{Owner: "o", Name: "n"}, prov)
+
+	// Set up the callback so the re-auth triggers
+	m.OnRequestCode = func(ctx context.Context, providerName string) (auth.DeviceCodeResponse, error) {
+		return auth.DeviceCodeResponse{
+			UserCode:        "ABCD-1234",
+			VerificationURI: "https://gitlab.com/oauth/device",
+			DeviceCode:      "dev123",
+			ExpiresIn:       300,
+			Interval:        5,
+		}, nil
+	}
+
+	// Seed with initial data first
+	m0, _ := m.Update(tui.PipelinesLoadedMsg{Pipelines: pipelines})
+	app := m0.(tui.AppModel)
+
+	// Simulate AuthExpiredError
+	authErr := &provider.AuthExpiredError{Provider: "gitlab"}
+	m1, cmd := app.Update(tui.PipelinesLoadedMsg{Err: authErr})
+
+	// The cmd should be the requestDeviceCode command
+	if cmd == nil {
+		t.Fatal("expected a command to be returned for device code request")
+	}
+
+	// Execute the command to get DeviceCodeMsg
+	cmdResult := cmd()
+	m2, _ := m1.(tui.AppModel).Update(cmdResult)
+	view := m2.(tui.AppModel).View()
+
+	if !strings.Contains(view, "Session expired") {
+		t.Errorf("expected 'Session expired' in view, got:\n%s", view)
+	}
+	if !strings.Contains(view, "ABCD-1234") {
+		t.Errorf("expected user code in view, got:\n%s", view)
+	}
+}
+
+func TestApp_ReAuthComplete_ReloadsPipelines(t *testing.T) {
+	prov := &fakeProvider{
+		pipelines: []domain.Pipeline{{ID: "1", Branch: "main"}},
+	}
+	m := tui.NewAppModel(domain.Repository{Owner: "o", Name: "n"}, prov)
+
+	tokenRefreshed := false
+	m.OnTokenRefreshed = func(providerName string, resp auth.TokenResponse) {
+		tokenRefreshed = true
+	}
+
+	// Simulate successful re-auth
+	m1, cmd := m.Update(tui.ReAuthCompleteMsg{
+		Token: auth.TokenResponse{AccessToken: "new-token", RefreshToken: "new-refresh"},
+	})
+	app := m1.(tui.AppModel)
+
+	if !tokenRefreshed {
+		t.Error("expected OnTokenRefreshed to be called")
+	}
+	if cmd == nil {
+		t.Fatal("expected loadPipelines command after re-auth")
+	}
+
+	view := app.View()
+	if !strings.Contains(view, "Loading pipelines") {
+		t.Errorf("expected loading state after re-auth, got:\n%s", view)
+	}
+}
+
+func TestApp_EscFromReAuth_ReturnsToErrorView(t *testing.T) {
+	prov := &fakeProvider{
+		pipelines: []domain.Pipeline{{ID: "1", Branch: "main"}},
+	}
+	m := tui.NewAppModel(domain.Repository{Owner: "o", Name: "n"}, prov)
+
+	// Manually set re-auth state
+	m.OnRequestCode = func(ctx context.Context, providerName string) (auth.DeviceCodeResponse, error) {
+		return auth.DeviceCodeResponse{UserCode: "CODE"}, nil
+	}
+
+	// Trigger re-auth
+	authErr := &provider.AuthExpiredError{Provider: "gitlab"}
+	m1, cmd := m.Update(tui.PipelinesLoadedMsg{Err: authErr})
+	if cmd != nil {
+		result := cmd()
+		m1, _ = m1.(tui.AppModel).Update(result)
+	}
+
+	// Press ESC
+	m2, _ := m1.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEsc})
+	view := m2.(tui.AppModel).View()
+
+	if !strings.Contains(view, "session expired") {
+		t.Errorf("expected session expired error message, got:\n%s", view)
+	}
+	if !strings.Contains(view, "ctrl+r") {
+		t.Errorf("expected retry hint, got:\n%s", view)
 	}
 }

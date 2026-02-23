@@ -1,13 +1,17 @@
 package tui
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/waabox/gitdeck/internal/auth"
 	"github.com/waabox/gitdeck/internal/domain"
+	"github.com/waabox/gitdeck/internal/provider"
 )
 
 // PipelinesLoadedMsg is sent when pipelines have been fetched from the provider.
@@ -40,6 +44,18 @@ type LogsLoadedMsg struct {
 	Err     error
 }
 
+// DeviceCodeMsg carries the device code response for re-authentication.
+type DeviceCodeMsg struct {
+	Code auth.DeviceCodeResponse
+	Err  error
+}
+
+// ReAuthCompleteMsg signals that re-authentication completed.
+type ReAuthCompleteMsg struct {
+	Token auth.TokenResponse
+	Err   error
+}
+
 // viewState indicates the current navigation level.
 type viewState int
 
@@ -48,6 +64,7 @@ const (
 	viewJobs
 	viewSteps
 	viewLogs
+	viewReAuth
 )
 
 // AppModel is the root Bubbletea model for gitdeck.
@@ -77,6 +94,14 @@ type AppModel struct {
 	logOffset     int
 	logJobName    string
 	logReturnView viewState
+	// Re-auth state
+	reAuthProvider string
+	reAuthCode     auth.DeviceCodeResponse
+	reAuthCancel   context.CancelFunc
+	// Callbacks for re-auth (set by caller via exported fields)
+	OnRequestCode    func(ctx context.Context, provider string) (auth.DeviceCodeResponse, error)
+	OnPollToken      func(ctx context.Context, provider string, deviceCode string, interval int) (auth.TokenResponse, error)
+	OnTokenRefreshed func(provider string, resp auth.TokenResponse)
 }
 
 // NewAppModel creates the root application model.
@@ -130,6 +155,27 @@ func (m AppModel) loadJobLogs(job domain.Job) tea.Cmd {
 	}
 }
 
+func (m AppModel) requestDeviceCode() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		_ = cancel // cancel will be stored via DeviceCodeMsg handler
+		code, err := m.OnRequestCode(ctx, m.reAuthProvider)
+		if err != nil {
+			cancel()
+		}
+		return DeviceCodeMsg{Code: code, Err: err}
+	}
+}
+
+func (m AppModel) pollReAuthToken() tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(m.reAuthCode.ExpiresIn)*time.Second)
+		defer cancel()
+		token, err := m.OnPollToken(ctx, m.reAuthProvider, m.reAuthCode.DeviceCode, m.reAuthCode.Interval)
+		return ReAuthCompleteMsg{Token: token, Err: err}
+	}
+}
+
 func tickEvery(d time.Duration) tea.Cmd {
 	return tea.Tick(d, func(_ time.Time) tea.Msg {
 		return tickMsg{}
@@ -157,6 +203,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PipelinesLoadedMsg:
 		m.loading = false
 		if msg.Err != nil {
+			var authErr *provider.AuthExpiredError
+			if errors.As(msg.Err, &authErr) && m.OnRequestCode != nil {
+				m.reAuthProvider = authErr.Provider
+				m.view = viewReAuth
+				m.err = nil
+				return m, m.requestDeviceCode()
+			}
 			m.err = msg.Err
 			return m, nil
 		}
@@ -177,6 +230,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case PipelineDetailMsg:
 		if msg.Err != nil {
+			var authErr *provider.AuthExpiredError
+			if errors.As(msg.Err, &authErr) && m.OnRequestCode != nil {
+				m.reAuthProvider = authErr.Provider
+				m.view = viewReAuth
+				m.err = nil
+				return m, m.requestDeviceCode()
+			}
 			m.err = msg.Err
 			return m, nil
 		}
@@ -195,6 +255,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case actionResultMsg:
 		if msg.err != nil {
+			var authErr *provider.AuthExpiredError
+			if errors.As(msg.err, &authErr) && m.OnRequestCode != nil {
+				m.reAuthProvider = authErr.Provider
+				m.view = viewReAuth
+				m.err = nil
+				return m, m.requestDeviceCode()
+			}
 			m.err = msg.err
 			return m, nil
 		}
@@ -214,6 +281,31 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logJobName = msg.JobName
 		m.logOffset = 0
 		return m, nil
+
+	case DeviceCodeMsg:
+		if msg.Err != nil {
+			m.err = fmt.Errorf("re-authentication failed: %w", msg.Err)
+			m.view = viewPipelines
+			return m, nil
+		}
+		m.reAuthCode = msg.Code
+		return m, m.pollReAuthToken()
+
+	case ReAuthCompleteMsg:
+		if msg.Err != nil {
+			m.err = fmt.Errorf("re-authentication failed: %w", msg.Err)
+			m.view = viewPipelines
+			return m, nil
+		}
+		if m.OnTokenRefreshed != nil {
+			m.OnTokenRefreshed(m.reAuthProvider, msg.Token)
+		}
+		m.reAuthProvider = ""
+		m.reAuthCode = auth.DeviceCodeResponse{}
+		m.view = viewPipelines
+		m.loading = true
+		m.err = nil
+		return m, m.loadPipelines()
 
 	case tea.KeyMsg:
 		if m.confirmAction != "" {
@@ -252,6 +344,17 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateSteps(msg)
 		case viewLogs:
 			return m.updateLogs(msg)
+		case viewReAuth:
+			if msg.String() == "esc" || msg.String() == "q" || msg.String() == "ctrl+c" {
+				if msg.String() == "q" || msg.String() == "ctrl+c" {
+					return m, tea.Quit
+				}
+				m.view = viewPipelines
+				m.err = fmt.Errorf("%s session expired: press ctrl+r to retry", m.reAuthProvider)
+				m.reAuthProvider = ""
+				m.reAuthCode = auth.DeviceCodeResponse{}
+				return m, nil
+			}
 		}
 	}
 	return m, nil
@@ -373,6 +476,9 @@ func (m AppModel) View() string {
 	if m.view == viewLogs {
 		return m.renderLogView()
 	}
+	if m.view == viewReAuth {
+		return m.renderReAuthView()
+	}
 	if m.loading && m.confirmAction == "" {
 		return "Loading pipelines...\n"
 	}
@@ -434,6 +540,26 @@ func (m AppModel) renderStepsView(header, separator string) string {
 	stepsView := m.steps.View()
 	footer := " ↑/↓: navigate   l: logs   esc: back   q: quit\n"
 	return header + separator + title + stepsView + "\n" + separator + footer
+}
+
+func (m AppModel) renderReAuthView() string {
+	header := " gitdeck — Re-authentication Required\n"
+	separator := "────────────────────────────────────────────────────────────\n"
+
+	var body string
+	if m.reAuthCode.UserCode == "" {
+		body = fmt.Sprintf("\n Session expired for %s.\n\n Requesting authorization...\n\n", m.reAuthProvider)
+	} else {
+		body = fmt.Sprintf(
+			"\n Session expired for %s.\n\n"+
+				" Visit:  %s\n"+
+				" Code:   %s\n\n"+
+				" Waiting for authorization...\n\n",
+			m.reAuthProvider, m.reAuthCode.VerificationURI, m.reAuthCode.UserCode)
+	}
+
+	footer := " Press ESC to cancel   q: quit\n"
+	return header + separator + body + separator + footer
 }
 
 // Run starts the Bubbletea program. Exits on error.
