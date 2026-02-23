@@ -9,14 +9,13 @@ import (
 
 // JobDetailModel is an immutable model for the jobs panel.
 type JobDetailModel struct {
-	jobs     []domain.Job
-	cursor   int
-	expanded map[int]bool
+	jobs   []domain.Job
+	cursor int
 }
 
 // NewJobDetailModel creates a job detail model.
 func NewJobDetailModel(jobs []domain.Job) JobDetailModel {
-	return JobDetailModel{jobs: jobs, cursor: 0, expanded: map[int]bool{}}
+	return JobDetailModel{jobs: jobs, cursor: 0}
 }
 
 // MoveDown returns a new model with the cursor moved down by one.
@@ -32,21 +31,6 @@ func (m JobDetailModel) MoveUp() JobDetailModel {
 	if m.cursor > 0 {
 		m.cursor--
 	}
-	return m
-}
-
-// ToggleExpand returns a new model with the given job index expanded or collapsed.
-// If the job has no steps, the toggle is a no-op.
-func (m JobDetailModel) ToggleExpand(idx int) JobDetailModel {
-	if idx < 0 || idx >= len(m.jobs) || len(m.jobs[idx].Steps) == 0 {
-		return m
-	}
-	next := make(map[int]bool, len(m.expanded))
-	for k, v := range m.expanded {
-		next[k] = v
-	}
-	next[idx] = !next[idx]
-	m.expanded = next
 	return m
 }
 
@@ -90,24 +74,6 @@ func (m JobDetailModel) render(focused bool) string {
 			truncate(j.Name, 25),
 			duration,
 		))
-		if m.expanded[i] {
-			for si, s := range j.Steps {
-				tree := "├─"
-				if si == len(j.Steps)-1 {
-					tree = "└─"
-				}
-				stepDuration := "--"
-				if s.Duration > 0 {
-					stepDuration = fmt.Sprintf("%ds", int(s.Duration.Seconds()))
-				}
-				sb.WriteString(fmt.Sprintf("    %s %s %-21s %s\n",
-					tree,
-					statusIcon(s.Status),
-					truncate(s.Name, 21),
-					stepDuration,
-				))
-			}
-		}
 	}
 	return sb.String()
 }

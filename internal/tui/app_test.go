@@ -152,3 +152,109 @@ func TestApp_RefreshPreservesSelection(t *testing.T) {
 		t.Errorf("expected status bar NOT to show pipeline #1, got:\n%s", view)
 	}
 }
+
+func TestApp_EnterDrillsIntoPipelineJobs(t *testing.T) {
+	pipelines := []domain.Pipeline{
+		{ID: "1001", Branch: "main", Status: domain.StatusSuccess},
+	}
+	provider := &fakeProvider{pipelines: pipelines}
+	m := tui.NewAppModel(domain.Repository{Owner: "waabox", Name: "gitdeck"}, provider)
+
+	m0, _ := m.Update(tui.PipelinesLoadedMsg{Pipelines: pipelines})
+	m1, _ := m0.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+
+	// Inject detail response
+	m2, _ := m1.(tui.AppModel).Update(tui.PipelineDetailMsg{
+		Pipeline: domain.Pipeline{
+			ID: "1001", Branch: "main",
+			Jobs: []domain.Job{{ID: "j1", Name: "build", Status: domain.StatusSuccess}},
+		},
+	})
+	view := m2.(tui.AppModel).View()
+	if !strings.Contains(view, "Jobs for Pipeline #1001") {
+		t.Errorf("expected jobs view header, got:\n%s", view)
+	}
+	if !strings.Contains(view, "build") {
+		t.Errorf("expected job 'build' in view, got:\n%s", view)
+	}
+}
+
+func TestApp_EscFromJobsReturnsToPipelines(t *testing.T) {
+	pipelines := []domain.Pipeline{
+		{ID: "1001", Branch: "main", Status: domain.StatusSuccess},
+	}
+	provider := &fakeProvider{pipelines: pipelines}
+	m := tui.NewAppModel(domain.Repository{Owner: "waabox", Name: "gitdeck"}, provider)
+
+	m0, _ := m.Update(tui.PipelinesLoadedMsg{Pipelines: pipelines})
+	m1, _ := m0.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m2, _ := m1.(tui.AppModel).Update(tui.PipelineDetailMsg{
+		Pipeline: domain.Pipeline{
+			ID: "1001", Branch: "main",
+			Jobs: []domain.Job{{ID: "j1", Name: "build"}},
+		},
+	})
+	m3, _ := m2.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEsc})
+	view := m3.(tui.AppModel).View()
+	if !strings.Contains(view, "Pipelines") {
+		t.Errorf("expected pipelines view after esc, got:\n%s", view)
+	}
+}
+
+func TestApp_EnterFromJobsDrillsIntoSteps(t *testing.T) {
+	pipelines := []domain.Pipeline{
+		{ID: "1001", Branch: "main", Status: domain.StatusSuccess},
+	}
+	provider := &fakeProvider{pipelines: pipelines}
+	m := tui.NewAppModel(domain.Repository{Owner: "waabox", Name: "gitdeck"}, provider)
+
+	m0, _ := m.Update(tui.PipelinesLoadedMsg{Pipelines: pipelines})
+	m1, _ := m0.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m2, _ := m1.(tui.AppModel).Update(tui.PipelineDetailMsg{
+		Pipeline: domain.Pipeline{
+			ID: "1001", Branch: "main",
+			Jobs: []domain.Job{{
+				ID: "j1", Name: "test",
+				Steps: []domain.Step{
+					{Name: "checkout", Status: domain.StatusSuccess},
+					{Name: "run tests", Status: domain.StatusFailed},
+				},
+			}},
+		},
+	})
+	// Enter on job to see steps
+	m3, _ := m2.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	view := m3.(tui.AppModel).View()
+	if !strings.Contains(view, "Steps for Job: test") {
+		t.Errorf("expected steps view header, got:\n%s", view)
+	}
+	if !strings.Contains(view, "checkout") {
+		t.Errorf("expected step 'checkout' in view, got:\n%s", view)
+	}
+}
+
+func TestApp_EscFromStepsReturnsToJobs(t *testing.T) {
+	pipelines := []domain.Pipeline{
+		{ID: "1001", Branch: "main", Status: domain.StatusSuccess},
+	}
+	provider := &fakeProvider{pipelines: pipelines}
+	m := tui.NewAppModel(domain.Repository{Owner: "waabox", Name: "gitdeck"}, provider)
+
+	m0, _ := m.Update(tui.PipelinesLoadedMsg{Pipelines: pipelines})
+	m1, _ := m0.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m2, _ := m1.(tui.AppModel).Update(tui.PipelineDetailMsg{
+		Pipeline: domain.Pipeline{
+			ID: "1001", Branch: "main",
+			Jobs: []domain.Job{{
+				ID: "j1", Name: "test",
+				Steps: []domain.Step{{Name: "checkout"}},
+			}},
+		},
+	})
+	m3, _ := m2.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m4, _ := m3.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEsc})
+	view := m4.(tui.AppModel).View()
+	if !strings.Contains(view, "Jobs for Pipeline") {
+		t.Errorf("expected jobs view after esc from steps, got:\n%s", view)
+	}
+}

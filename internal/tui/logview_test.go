@@ -17,19 +17,26 @@ func TestApp_LogKey_ShowsLoadingMessage(t *testing.T) {
 	}
 	m := tui.NewAppModel(domain.Repository{Owner: "waabox", Name: "gitdeck"}, provider)
 
-	// Seed pipelines and set the detail panel focused with a job loaded
+	// Seed pipelines
 	m1, _ := m.Update(tui.PipelinesLoadedMsg{
 		Pipelines: []domain.Pipeline{{
 			ID: "1001", Branch: "main", Status: domain.StatusFailed,
 			Jobs: []domain.Job{{ID: "2001", Name: "test", Status: domain.StatusFailed}},
 		}},
 	})
-	// Switch focus to detail panel
-	m2, _ := m1.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyTab})
+	// Press enter to drill into pipeline (switches to viewJobs)
+	m2, _ := m1.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyEnter})
+	// Inject the detail response
+	m3, _ := m2.(tui.AppModel).Update(tui.PipelineDetailMsg{
+		Pipeline: domain.Pipeline{
+			ID: "1001", Branch: "main", Status: domain.StatusFailed,
+			Jobs: []domain.Job{{ID: "2001", Name: "test", Status: domain.StatusFailed}},
+		},
+	})
 	// Press l to open logs
-	m3, _ := m2.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
+	m4, _ := m3.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("l")})
 
-	view := m3.(tui.AppModel).View()
+	view := m4.(tui.AppModel).View()
 	if !strings.Contains(view, "Loading logs") {
 		t.Errorf("expected loading message after pressing l, got:\n%s", view)
 	}
@@ -79,9 +86,6 @@ func TestApp_LogView_ScrollDown_MovesOffset(t *testing.T) {
 	m2, _ := m1.(tui.AppModel).Update(tea.KeyMsg{Type: tea.KeyDown})
 	view := m2.(tui.AppModel).View()
 
-	// After scrolling down, line1 should not be at the top (offset moved)
-	// We can verify by checking that line2 is shown before line1 would have been
-	// Most reliably: check that the first visible line starts from line2
 	if !strings.Contains(view, "line2") {
 		t.Errorf("expected line2 visible after scroll down, got:\n%s", view)
 	}

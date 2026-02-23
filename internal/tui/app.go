@@ -17,10 +17,10 @@ type PipelinesLoadedMsg struct {
 	Err       error
 }
 
-// pipelineDetailMsg is sent when a pipeline detail (with jobs) has been fetched.
-type pipelineDetailMsg struct {
-	pipeline domain.Pipeline
-	err      error
+// PipelineDetailMsg is sent when a pipeline detail (with jobs) has been fetched.
+type PipelineDetailMsg struct {
+	Pipeline domain.Pipeline
+	Err      error
 }
 
 // tickMsg is sent by the auto-refresh ticker.
@@ -40,33 +40,43 @@ type LogsLoadedMsg struct {
 	Err     error
 }
 
-// focusPanel indicates which panel has keyboard focus.
-type focusPanel int
+// viewState indicates the current navigation level.
+type viewState int
 
 const (
-	focusList focusPanel = iota
-	focusDetail
+	viewPipelines viewState = iota
+	viewJobs
+	viewSteps
+	viewLogs
 )
 
 // AppModel is the root Bubbletea model for gitdeck.
 type AppModel struct {
-	repo          domain.Repository
-	provider      domain.PipelineProvider
-	list          PipelineListModel
-	detail        JobDetailModel
-	focus         focusPanel
+	repo     domain.Repository
+	provider domain.PipelineProvider
+	// Navigation
+	view viewState
+	// Pipeline level
+	list             PipelineListModel
+	selectedPipeline domain.Pipeline
+	// Job level
+	detail      JobDetailModel
+	selectedJob domain.Job
+	// Step level
+	steps StepListModel
+	// General state
 	loading       bool
 	err           error
 	width         int
 	height        int
-	confirmAction    string          // "rerun" | "cancel" | ""
-	selectedPipeline domain.Pipeline // stable selection, survives refresh
+	confirmAction string
 	// Log viewer state
-	logMode    bool
-	logLoading bool
-	logContent string
-	logOffset  int
-	logJobName string
+	logMode       bool
+	logLoading    bool
+	logContent    string
+	logOffset     int
+	logJobName    string
+	logReturnView viewState
 }
 
 // NewAppModel creates the root application model.
@@ -95,7 +105,7 @@ func (m AppModel) loadPipelines() tea.Cmd {
 func (m AppModel) loadPipelineDetail(id string) tea.Cmd {
 	return func() tea.Msg {
 		pipeline, err := m.provider.GetPipeline(m.repo, domain.PipelineID(id))
-		return pipelineDetailMsg{pipeline: pipeline, err: err}
+		return PipelineDetailMsg{Pipeline: pipeline, Err: err}
 	}
 }
 
@@ -151,16 +161,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if len(m.list.Pipelines()) == 0 {
-			// First load: create list and auto-select first pipeline.
 			m.list = NewPipelineListModel(msg.Pipelines)
 			if len(msg.Pipelines) > 0 {
 				m.selectedPipeline = msg.Pipelines[0]
-				if len(msg.Pipelines[0].Jobs) > 0 {
-					m.detail = NewJobDetailModel(msg.Pipelines[0].Jobs)
-				}
 			}
 		} else {
-			// Subsequent refreshes: update data, preserve cursor.
 			m.list = m.list.UpdatePipelines(msg.Pipelines)
 			for _, p := range msg.Pipelines {
 				if p.ID == m.selectedPipeline.ID {
@@ -170,12 +175,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case pipelineDetailMsg:
-		if msg.err != nil {
-			m.err = msg.err
+	case PipelineDetailMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
 			return m, nil
 		}
-		m.detail = NewJobDetailModel(msg.pipeline.Jobs)
+		m.detail = NewJobDetailModel(msg.Pipeline.Jobs)
 
 	case tickMsg:
 		interval := 30 * time.Second
@@ -202,6 +207,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 			return m, nil
 		}
+		m.logReturnView = m.view
+		m.view = viewLogs
 		m.logMode = true
 		m.logContent = msg.Content
 		m.logJobName = msg.JobName
@@ -209,7 +216,6 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// Any key dismisses the confirmation prompt (except y which confirms, and q/ctrl+c which quit).
 		if m.confirmAction != "" {
 			switch msg.String() {
 			case "y":
@@ -236,103 +242,125 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+r":
 			m.loading = true
 			return m, m.loadPipelines()
-		case "r":
-			if !m.logMode {
-				m.confirmAction = "rerun"
-			}
-			return m, nil
-		case "x":
-			if !m.logMode {
-				m.confirmAction = "cancel"
-			}
-			return m, nil
-		case "tab":
-			if m.focus == focusList {
-				m.focus = focusDetail
-			} else {
-				m.focus = focusList
-			}
-		case "down":
-			if m.logMode {
-				maxOffset := strings.Count(m.logContent, "\n")
-				if m.logOffset < maxOffset {
-					m.logOffset++
-				}
-				return m, nil
-			}
-			if m.focus == focusList {
-				m.list = m.list.MoveDown()
-				m.selectedPipeline = m.list.SelectedPipeline()
-				return m, m.loadPipelineDetail(m.selectedPipeline.ID)
-			}
-			m.detail = m.detail.MoveDown()
-		case "up":
-			if m.logMode {
-				if m.logOffset > 0 {
-					m.logOffset--
-				}
-				return m, nil
-			}
-			if m.focus == focusList {
-				m.list = m.list.MoveUp()
-				m.selectedPipeline = m.list.SelectedPipeline()
-				return m, m.loadPipelineDetail(m.selectedPipeline.ID)
-			}
-			m.detail = m.detail.MoveUp()
-		case "enter":
-			if m.focus == focusList {
-				m.focus = focusDetail
-				m.selectedPipeline = m.list.SelectedPipeline()
-				return m, m.loadPipelineDetail(m.selectedPipeline.ID)
-			}
-			m.detail = m.detail.ToggleExpand(m.detail.Cursor())
-		case "l":
-			if m.focus == focusDetail && !m.logMode && !m.logLoading {
-				jobs := m.detail.Jobs()
-				if len(jobs) > 0 {
-					m.logLoading = true
-					return m, m.loadJobLogs(jobs[m.detail.Cursor()])
-				}
-			}
-		case "pgup":
-			if m.logMode {
-				page := m.visibleLogLines()
-				if m.logOffset-page >= 0 {
-					m.logOffset -= page
-				} else {
-					m.logOffset = 0
-				}
-				return m, nil
-			}
-		case "pgdown":
-			if m.logMode {
-				maxOffset := strings.Count(m.logContent, "\n")
-				m.logOffset += m.visibleLogLines()
-				if m.logOffset > maxOffset {
-					m.logOffset = maxOffset
-				}
-				return m, nil
-			}
-		case "g":
-			if m.logMode {
-				m.logOffset = 0
-				return m, nil
-			}
-		case "G":
-			if m.logMode {
-				lines := strings.Split(m.logContent, "\n")
-				m.logOffset = len(lines) - 1
-				return m, nil
-			}
-		case "esc":
-			if m.logMode {
-				m.logMode = false
-				m.logContent = ""
-				m.logOffset = 0
-				return m, nil
-			}
-			m.focus = focusList
 		}
+		switch m.view {
+		case viewPipelines:
+			return m.updatePipelines(msg)
+		case viewJobs:
+			return m.updateJobs(msg)
+		case viewSteps:
+			return m.updateSteps(msg)
+		case viewLogs:
+			return m.updateLogs(msg)
+		}
+	}
+	return m, nil
+}
+
+func (m AppModel) updatePipelines(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "down":
+		m.list = m.list.MoveDown()
+		m.selectedPipeline = m.list.SelectedPipeline()
+	case "up":
+		m.list = m.list.MoveUp()
+		m.selectedPipeline = m.list.SelectedPipeline()
+	case "enter":
+		if len(m.list.Pipelines()) > 0 {
+			m.selectedPipeline = m.list.SelectedPipeline()
+			m.view = viewJobs
+			return m, m.loadPipelineDetail(m.selectedPipeline.ID)
+		}
+	case "r":
+		m.confirmAction = "rerun"
+	case "x":
+		m.confirmAction = "cancel"
+	}
+	return m, nil
+}
+
+func (m AppModel) updateJobs(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "down":
+		m.detail = m.detail.MoveDown()
+	case "up":
+		m.detail = m.detail.MoveUp()
+	case "enter":
+		jobs := m.detail.Jobs()
+		if len(jobs) > 0 {
+			m.selectedJob = jobs[m.detail.Cursor()]
+			m.steps = NewStepListModel(m.selectedJob.Steps)
+			m.view = viewSteps
+		}
+	case "l":
+		if !m.logLoading {
+			jobs := m.detail.Jobs()
+			if len(jobs) > 0 {
+				m.logLoading = true
+				return m, m.loadJobLogs(jobs[m.detail.Cursor()])
+			}
+		}
+	case "esc":
+		m.view = viewPipelines
+	case "r":
+		m.confirmAction = "rerun"
+	case "x":
+		m.confirmAction = "cancel"
+	}
+	return m, nil
+}
+
+func (m AppModel) updateSteps(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "down":
+		m.steps = m.steps.MoveDown()
+	case "up":
+		m.steps = m.steps.MoveUp()
+	case "l":
+		if !m.logLoading {
+			m.logLoading = true
+			return m, m.loadJobLogs(m.selectedJob)
+		}
+	case "esc":
+		m.view = viewJobs
+	}
+	return m, nil
+}
+
+func (m AppModel) updateLogs(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "down":
+		maxOffset := strings.Count(m.logContent, "\n")
+		if m.logOffset < maxOffset {
+			m.logOffset++
+		}
+	case "up":
+		if m.logOffset > 0 {
+			m.logOffset--
+		}
+	case "pgup":
+		page := m.visibleLogLines()
+		if m.logOffset-page >= 0 {
+			m.logOffset -= page
+		} else {
+			m.logOffset = 0
+		}
+	case "pgdown":
+		maxOffset := strings.Count(m.logContent, "\n")
+		m.logOffset += m.visibleLogLines()
+		if m.logOffset > maxOffset {
+			m.logOffset = maxOffset
+		}
+	case "g":
+		m.logOffset = 0
+	case "G":
+		lines := strings.Split(m.logContent, "\n")
+		m.logOffset = len(lines) - 1
+	case "esc":
+		m.view = m.logReturnView
+		m.logMode = false
+		m.logContent = ""
+		m.logOffset = 0
 	}
 	return m, nil
 }
@@ -342,7 +370,7 @@ func (m AppModel) View() string {
 	if m.logLoading {
 		return "Loading logs...\n"
 	}
-	if m.logMode {
+	if m.view == viewLogs {
 		return m.renderLogView()
 	}
 	if m.loading && m.confirmAction == "" {
@@ -352,41 +380,60 @@ func (m AppModel) View() string {
 		return fmt.Sprintf("Error: %v\n\nPress 'ctrl+r' to retry or 'q' to quit.\n", m.err)
 	}
 
-	selected := m.selectedPipeline
 	header := fmt.Sprintf(" gitdeck | %s / ⎇ %s %s / %s\n",
-		m.repo.Name, selected.Branch, shortSHA(selected.CommitSHA), firstLine(selected.CommitMsg))
+		m.repo.Name, m.selectedPipeline.Branch,
+		shortSHA(m.selectedPipeline.CommitSHA),
+		firstLine(m.selectedPipeline.CommitMsg))
 	separator := "────────────────────────────────────────────────────────────\n"
 
-	listHeader := " PIPELINES\n"
-	detailHeader := " JOBS\n"
-	if m.focus == focusList {
-		listHeader = " PIPELINES [active]\n"
-	} else {
-		detailHeader = " JOBS [active]\n"
+	switch m.view {
+	case viewPipelines:
+		return m.renderPipelinesView(header, separator)
+	case viewJobs:
+		return m.renderJobsView(header, separator)
+	case viewSteps:
+		return m.renderStepsView(header, separator)
+	default:
+		return header
 	}
+}
 
+func (m AppModel) renderPipelinesView(header, separator string) string {
+	title := " Pipelines\n"
 	listView := m.list.View()
-	detailView := m.detail.View()
-	if m.focus == focusDetail {
-		detailView = m.detail.ViewFocused()
-	}
-	statusBar := fmt.Sprintf("#%s by %s\n", selected.ID, selected.Author)
-
-	footer := " ↑/↓: navigate   tab: switch panel   enter: select/expand   ctrl+r: refresh   r: rerun   x: cancel   q: quit\n"
-	if m.focus == focusDetail {
-		footer = " ↑/↓: navigate   tab: switch panel   enter: expand   l: logs   r: rerun   x: cancel   q: quit\n"
-	}
+	statusBar := fmt.Sprintf(" #%s by %s\n", m.selectedPipeline.ID, m.selectedPipeline.Author)
+	footer := " ↑/↓: navigate   enter: open   ctrl+r: refresh   r: rerun   x: cancel   q: quit\n"
 	if m.confirmAction == "rerun" {
-		footer = fmt.Sprintf(" Rerun pipeline #%s on %s? [y/N] \n", selected.ID, selected.Branch)
+		footer = fmt.Sprintf(" Rerun pipeline #%s on %s? [y/N] \n",
+			m.selectedPipeline.ID, m.selectedPipeline.Branch)
 	}
 	if m.confirmAction == "cancel" {
-		footer = fmt.Sprintf(" Cancel pipeline #%s on %s? [y/N] \n", selected.ID, selected.Branch)
+		footer = fmt.Sprintf(" Cancel pipeline #%s on %s? [y/N] \n",
+			m.selectedPipeline.ID, m.selectedPipeline.Branch)
 	}
+	return header + separator + title + listView + "\n" + separator + statusBar + separator + footer
+}
 
-	return header + separator +
-		listHeader + listView + "\n" +
-		detailHeader + detailView + "\n" +
-		separator + statusBar + separator + footer
+func (m AppModel) renderJobsView(header, separator string) string {
+	title := fmt.Sprintf(" Jobs for Pipeline #%s\n", m.selectedPipeline.ID)
+	detailView := m.detail.ViewFocused()
+	footer := " ↑/↓: navigate   enter: steps   l: logs   esc: back   r: rerun   x: cancel   q: quit\n"
+	if m.confirmAction == "rerun" {
+		footer = fmt.Sprintf(" Rerun pipeline #%s on %s? [y/N] \n",
+			m.selectedPipeline.ID, m.selectedPipeline.Branch)
+	}
+	if m.confirmAction == "cancel" {
+		footer = fmt.Sprintf(" Cancel pipeline #%s on %s? [y/N] \n",
+			m.selectedPipeline.ID, m.selectedPipeline.Branch)
+	}
+	return header + separator + title + detailView + "\n" + separator + footer
+}
+
+func (m AppModel) renderStepsView(header, separator string) string {
+	title := fmt.Sprintf(" Steps for Job: %s\n", m.selectedJob.Name)
+	stepsView := m.steps.View()
+	footer := " ↑/↓: navigate   l: logs   esc: back   q: quit\n"
+	return header + separator + title + stepsView + "\n" + separator + footer
 }
 
 // Run starts the Bubbletea program. Exits on error.
