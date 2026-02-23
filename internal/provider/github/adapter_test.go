@@ -339,3 +339,31 @@ func TestGetJobLogs_ReturnsLogText(t *testing.T) {
 		t.Errorf("expected log text %q, got %q", expectedLog, logs)
 	}
 }
+
+func TestSetToken_UpdatesTokenForSubsequentRequests(t *testing.T) {
+	receivedTokens := []string{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedTokens = append(receivedTokens, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"workflow_runs": []interface{}{}})
+	}))
+	defer srv.Close()
+
+	adapter := githubprovider.NewAdapter("old-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "owner", Name: "repo"}
+
+	adapter.ListPipelines(repo)
+	adapter.SetToken("new-token")
+	adapter.ListPipelines(repo)
+
+	if len(receivedTokens) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(receivedTokens))
+	}
+	if receivedTokens[0] != "Bearer old-token" {
+		t.Errorf("first request: want 'Bearer old-token', got '%s'", receivedTokens[0])
+	}
+	if receivedTokens[1] != "Bearer new-token" {
+		t.Errorf("second request: want 'Bearer new-token', got '%s'", receivedTokens[1])
+	}
+}

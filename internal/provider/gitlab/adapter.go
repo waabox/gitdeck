@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/waabox/gitdeck/internal/domain"
@@ -16,6 +17,7 @@ const defaultBaseURL = "https://gitlab.com"
 
 // Adapter implements domain.PipelineProvider for GitLab CI.
 type Adapter struct {
+	mu      sync.Mutex
 	token   string
 	baseURL string
 	limit   int
@@ -38,6 +40,13 @@ func NewAdapter(token string, baseURL string, limit int) *Adapter {
 		limit:   limit,
 		client:  &http.Client{Timeout: 15 * time.Second},
 	}
+}
+
+// SetToken updates the access token used for API requests.
+func (a *Adapter) SetToken(token string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.token = token
 }
 
 // ListPipelines returns the most recent pipelines for the repository.
@@ -80,11 +89,15 @@ func (a *Adapter) GetPipeline(repo domain.Repository, id domain.PipelineID) (dom
 }
 
 func (a *Adapter) get(apiURL string, target interface{}) error {
+	a.mu.Lock()
+	token := a.token
+	a.mu.Unlock()
+
 	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+a.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -103,11 +116,15 @@ func (a *Adapter) get(apiURL string, target interface{}) error {
 
 // getText fetches a URL and returns the response body as a plain string.
 func (a *Adapter) getText(apiURL string) (string, error) {
+	a.mu.Lock()
+	token := a.token
+	a.mu.Unlock()
+
 	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+a.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := a.client.Do(req)
 	if err != nil {
@@ -132,11 +149,15 @@ func (a *Adapter) getText(apiURL string) (string, error) {
 // GitLab mutation endpoints (retry, cancel) return 200 or 201 with a JSON body
 // that we do not need.
 func (a *Adapter) post(apiURL string) error {
+	a.mu.Lock()
+	token := a.token
+	a.mu.Unlock()
+
 	req, err := http.NewRequest(http.MethodPost, apiURL, nil)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+a.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 
 	resp, err := a.client.Do(req)
 	if err != nil {

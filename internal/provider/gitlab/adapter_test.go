@@ -240,3 +240,31 @@ func TestCancelPipeline_PostsToCancelEndpoint(t *testing.T) {
 		t.Error("expected cancel endpoint to be called")
 	}
 }
+
+func TestSetToken_UpdatesTokenForSubsequentRequests(t *testing.T) {
+	receivedTokens := []string{}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedTokens = append(receivedTokens, r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]map[string]interface{}{})
+	}))
+	defer srv.Close()
+
+	adapter := gitlabprovider.NewAdapter("old-token", srv.URL, 3)
+	repo := domain.Repository{Owner: "mygroup", Name: "myproject"}
+
+	adapter.ListPipelines(repo)
+	adapter.SetToken("new-token")
+	adapter.ListPipelines(repo)
+
+	if len(receivedTokens) != 2 {
+		t.Fatalf("expected 2 requests, got %d", len(receivedTokens))
+	}
+	if receivedTokens[0] != "Bearer old-token" {
+		t.Errorf("first request: want 'Bearer old-token', got '%s'", receivedTokens[0])
+	}
+	if receivedTokens[1] != "Bearer new-token" {
+		t.Errorf("second request: want 'Bearer new-token', got '%s'", receivedTokens[1])
+	}
+}

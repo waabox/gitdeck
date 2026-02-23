@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/waabox/gitdeck/internal/domain"
@@ -15,6 +16,7 @@ const defaultBaseURL = "https://api.github.com"
 
 // Adapter implements domain.PipelineProvider for GitHub Actions.
 type Adapter struct {
+	mu      sync.Mutex
 	token   string
 	baseURL string
 	limit   int
@@ -37,6 +39,13 @@ func NewAdapter(token string, baseURL string, limit int) *Adapter {
 		limit:   limit,
 		client:  &http.Client{Timeout: 15 * time.Second},
 	}
+}
+
+// SetToken updates the access token used for API requests.
+func (a *Adapter) SetToken(token string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.token = token
 }
 
 // ListPipelines returns the most recent workflow runs for the repository.
@@ -80,11 +89,15 @@ func (a *Adapter) GetPipeline(repo domain.Repository, id domain.PipelineID) (dom
 }
 
 func (a *Adapter) get(url string, target interface{}) error {
+	a.mu.Lock()
+	token := a.token
+	a.mu.Unlock()
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+a.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := a.client.Do(req)
@@ -107,11 +120,15 @@ func (a *Adapter) get(url string, target interface{}) error {
 // header on cross-domain redirects — the correct behaviour for GitHub's log
 // endpoint that returns a 302 redirect to a pre-signed S3 URL.
 func (a *Adapter) getText(url string) (string, error) {
+	a.mu.Lock()
+	token := a.token
+	a.mu.Unlock()
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+a.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := a.client.Do(req)
@@ -136,11 +153,15 @@ func (a *Adapter) getText(url string) (string, error) {
 // post sends a POST request with no body and discards the response body.
 // GitHub mutation endpoints (rerun, cancel) return 204 or 202 with no meaningful body.
 func (a *Adapter) post(url string) error {
+	a.mu.Lock()
+	token := a.token
+	a.mu.Unlock()
+
 	req, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
 		return fmt.Errorf("creating request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+a.token)
+	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := a.client.Do(req)
