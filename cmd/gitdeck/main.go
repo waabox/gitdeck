@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/waabox/gitdeck/internal/auth"
 	"github.com/waabox/gitdeck/internal/config"
 	"github.com/waabox/gitdeck/internal/git"
@@ -87,14 +88,32 @@ func main() {
 	}
 
 	limit := cfg.PipelineLimitOrDefault()
+	gitLabURL := cfg.GitLab.URL
+
+	// Create adapters
+	githubAdapter := githubprovider.NewAdapter(cfg.GitHub.Token, "", limit)
+	gitlabAdapter := gitlabprovider.NewAdapter(cfg.GitLab.Token, gitLabURL, limit)
+
+	// Create token manager for silent refresh
+	tokenManager := auth.NewTokenManager(&cfg, configPath, gitLabURL)
+
+	// Wrap with refreshing logic
+	githubProvider := provider.NewRefreshingProvider(
+		githubAdapter, "github",
+		func() (string, error) { return "", fmt.Errorf("GitHub OAuth tokens cannot be refreshed") },
+		func(token string) { githubAdapter.SetToken(token) },
+	)
+	gitlabProvider := provider.NewRefreshingProvider(
+		gitlabAdapter, "gitlab",
+		func() (string, error) { return tokenManager.RefreshGitLab(context.Background()) },
+		func(token string) { gitlabAdapter.SetToken(token) },
+	)
 
 	registry := provider.NewRegistry()
-	registry.Register("github.com", githubprovider.NewAdapter(cfg.GitHub.Token, "", limit))
-
-	gitLabURL := cfg.GitLab.URL
-	registry.Register("gitlab.com", gitlabprovider.NewAdapter(cfg.GitLab.Token, gitLabURL, limit))
+	registry.Register("github.com", githubProvider)
+	registry.Register("gitlab.com", gitlabProvider)
 	if gitLabURL != "" {
-		registry.Register(gitLabURL, gitlabprovider.NewAdapter(cfg.GitLab.Token, gitLabURL, limit))
+		registry.Register(gitLabURL, gitlabProvider)
 	}
 
 	ciProvider, err := registry.Detect(repo.RemoteURL)
@@ -103,7 +122,67 @@ func main() {
 		os.Exit(1)
 	}
 
-	tui.Run(repo, ciProvider)
+	app := tui.NewAppModel(repo, ciProvider)
+	app.OnRequestCode = func(ctx context.Context, providerName string) (auth.DeviceCodeResponse, error) {
+		var clientID string
+		var baseURL string
+		switch providerName {
+		case "gitlab":
+			clientID = cfg.GitLab.ClientID
+			if clientID == "" {
+				clientID = defaultGitLabClientID
+			}
+			baseURL = cfg.GitLab.URL
+			flow := auth.NewGitLabDeviceFlow(clientID, baseURL)
+			return flow.RequestCode(ctx)
+		case "github":
+			clientID = cfg.GitHub.ClientID
+			if clientID == "" {
+				clientID = defaultGitHubClientID
+			}
+			flow := auth.NewGitHubDeviceFlow(clientID, "")
+			return flow.RequestCode(ctx)
+		}
+		return auth.DeviceCodeResponse{}, fmt.Errorf("unknown provider: %s", providerName)
+	}
+	app.OnPollToken = func(ctx context.Context, providerName string, deviceCode string, interval int) (auth.TokenResponse, error) {
+		var clientID string
+		switch providerName {
+		case "gitlab":
+			clientID = cfg.GitLab.ClientID
+			if clientID == "" {
+				clientID = defaultGitLabClientID
+			}
+			flow := auth.NewGitLabDeviceFlow(clientID, cfg.GitLab.URL)
+			return flow.PollToken(ctx, deviceCode, interval)
+		case "github":
+			clientID = cfg.GitHub.ClientID
+			if clientID == "" {
+				clientID = defaultGitHubClientID
+			}
+			flow := auth.NewGitHubDeviceFlow(clientID, "")
+			return flow.PollToken(ctx, deviceCode, interval)
+		}
+		return auth.TokenResponse{}, fmt.Errorf("unknown provider: %s", providerName)
+	}
+	app.OnTokenRefreshed = func(providerName string, resp auth.TokenResponse) {
+		switch providerName {
+		case "gitlab":
+			cfg.GitLab.Token = resp.AccessToken
+			cfg.GitLab.RefreshToken = resp.RefreshToken
+			gitlabAdapter.SetToken(resp.AccessToken)
+		case "github":
+			cfg.GitHub.Token = resp.AccessToken
+			githubAdapter.SetToken(resp.AccessToken)
+		}
+		config.Save(configPath, cfg)
+	}
+
+	p := tea.NewProgram(app, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "gitdeck error: %v\n", err)
+		os.Exit(1)
+	}
 }
 
 // isGitLabRemote returns true if the remote URL points to gitlab.com or the configured self-hosted URL.
